@@ -1,42 +1,87 @@
-<p align="center">
-    <img title="Laravel Zero" height="100" src="https://raw.githubusercontent.com/laravel-zero/docs/master/images/logo/laravel-zero-readme.png" alt="Laravel Zero Logo" />
-</p>
+# Laravel Starter Kit CLI
 
-<p align="center">
-  <a href="https://github.com/laravel-zero/framework/actions"><img src="https://github.com/laravel-zero/laravel-zero/actions/workflows/tests.yml/badge.svg" alt="Build Status" /></a>
-  <a href="https://packagist.org/packages/laravel-zero/framework"><img src="https://img.shields.io/packagist/dt/laravel-zero/framework.svg" alt="Total Downloads" /></a>
-  <a href="https://packagist.org/packages/laravel-zero/framework"><img src="https://img.shields.io/packagist/v/laravel-zero/framework.svg?label=stable" alt="Latest Stable Version" /></a>
-  <a href="https://packagist.org/packages/laravel-zero/framework"><img src="https://img.shields.io/packagist/l/laravel-zero/framework.svg" alt="License" /></a>
-  <a href="https://youtube.com/@nunomaduro?sub_confirmation=1"><img alt="YouTube Channel Subscribers" src="https://img.shields.io/youtube/channel/subscribers/UCO_hYZF2gb_CyG5sA7ArlGg?style=flat&label=youtube&color=brightgreen"></a>
-</p>
+A command line tool for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). It works much like the official `laravel` installer. Use it to create new projects from the starter kit, and to pull later starter kit changes into projects you have already created.
 
-Laravel Zero was created by [Nuno Maduro](https://github.com/nunomaduro) and [Owen Voke](https://github.com/owenvoke), and is a micro-framework that provides an elegant starting point for your console application. It is an **unofficial** and customized version of Laravel, optimized for building command-line applications.
+> This CLI is in early development. Neither command is available yet.
 
-- Built on top of the [Laravel](https://laravel.com) components.
-- Optional installation of Laravel [Eloquent](https://laravel-zero.com/docs/database/), Laravel [Logging](https://laravel-zero.com/docs/logging/) and many others.
-- Supports interactive [menus](https://laravel-zero.com/docs/build-interactive-menus/) and [desktop notifications](https://laravel-zero.com/docs/send-desktop-notifications/) on Linux, Windows & MacOS.
-- Ships with a [Scheduler](https://laravel-zero.com/docs/task-scheduling/) and  a [Standalone Compiler](https://laravel-zero.com/docs/distribute-as-a-single-executable-binary/).
-- Integration with [Collision](https://github.com/nunomaduro/collision) - Beautiful error reporting
-- Follow the creator Nuno Maduro:
-    - YouTube: **[youtube.com/@nunomaduro](https://www.youtube.com/@nunomaduro)** — Videos every weekday
-    - Twitch: **[twitch.tv/enunomaduro](https://www.twitch.tv/enunomaduro)** — Streams (almost) every weekday
-    - Twitter / X: **[x.com/enunomaduro](https://x.com/enunomaduro)**
-    - LinkedIn: **[linkedin.com/in/nunomaduro](https://www.linkedin.com/in/nunomaduro)**
-    - Instagram: **[instagram.com/enunomaduro](https://www.instagram.com/enunomaduro)**
-    - Tiktok: **[tiktok.com/@enunomaduro](https://www.tiktok.com/@enunomaduro)**
+## Requirements
 
-------
+- [PHP 8.5+](https://php.net/releases/)
+- [Composer](https://getcomposer.org)
+- [git](https://git-scm.com)
 
-## Documentation
+## Installation
 
-For full documentation, visit [laravel-zero.com](https://laravel-zero.com/).
+Installation instructions will be added once the first release is published.
 
-## Support the development
-**Do you like this project? Support it by donating**
+## Usage
 
-- PayPal: [Donate](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=66BYDWAT92N6L)
-- Patreon: [Donate](https://www.patreon.com/nunomaduro)
+### `new`
+
+> In progress.
+
+Creates a fresh project from the starter kit. Usage and options will be documented here once the command lands.
+
+### `update`
+
+> Planned.
+
+Run inside a project you created from the starter kit to pull in later starter kit changes. Usage and options will be documented here once the command lands.
+
+## Local Development
+
+> **Requires [PHP 8.5+](https://php.net/releases/), [Composer](https://getcomposer.org), and a code coverage driver like [Xdebug](https://xdebug.org/docs/install) or [PCOV](https://github.com/krakjoe/pcov).**
+
+```bash
+git clone git@github.com:shire-studio/laravel-starter-kit-cli.git
+cd laravel-starter-kit-cli
+composer install
+composer test
+```
+
+### Available Commands
+
+- `composer lint`: Runs Rector (refactoring) and Pint (formatting)
+- `composer test:lint`: Runs Pint and Rector in dry run mode
+- `composer test:types`: Runs PHPStan (Larastan at level max)
+- `composer test:type-coverage`: Ensures 100% type coverage with Pest
+- `composer test:unit`: Runs the Pest suite in parallel with a 100% code coverage requirement
+- `composer test`: Runs the complete suite (linting, static analysis, type coverage and unit tests)
+
+The Pest suite also applies the `php`, `strict` and `security` architecture presets.
+
+GitHub Actions runs `composer test` on PHP 8.5 for pushes to `main` and pull requests against it. Dependabot keeps GitHub Actions and Composer dependencies up to date.
+
+### Dependency Trust
+
+This project uses [laravel/vet](https://github.com/laravel/vet), a Composer plugin that checks installed packages against the hashes recorded in `vet.json`. It also holds back any release published less than 2 days ago (`minimum-release-age` in `vet.json`).
+
+After adding, removing or updating a dependency, audit the changes and record the packages you trust:
+
+```bash
+vendor/bin/vet
+```
+
+Commit the updated `vet.json` together with `composer.json` and `composer.lock`.
+
+> `composer.json` holds back `brianium/paratest` 7.26.1 and later with a `conflict` entry, because its new `WrapperWorker` constructor breaks parallel runs on Pest 5.3.1. Remove the entry once Pest ships a fix.
+
+### Building the PHAR
+
+```bash
+php application app:build
+```
+
+This asks for a build version (or pass `--build-version`) and writes a single file executable to `builds/application`. The PHAR contents are configured in `box.json`.
+
+## Contributing
+
+1. Create a feature branch (`git checkout -b feat/my-feature` or `git checkout -b fix/my-fix`)
+2. Make your changes
+3. Run `composer lint`, then make sure `composer test` passes
+4. Commit using [Conventional Commits](https://www.conventionalcommits.org) (for example `feat: add new command`)
+5. Open a pull request against `main`
 
 ## License
 
-Laravel Zero is an open-source software licensed under the MIT license.
+This project is open source software licensed under the [MIT license](https://opensource.org/licenses/MIT).
