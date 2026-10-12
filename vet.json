@@ -310,13 +310,25 @@
             "version": "v7.26.0",
             "hash": "tree-v2:c13ab7aff8a67f624869e680e51d8aac5a72514c68bbe5209436fb0cc169a86e"
         },
+        "composer/semver": {
+            "version": "3.5.1",
+            "hash": "tree-v2:31033436236e2d7e2319182098d53bd1efe172453f4bb82a9051437a28481bc1"
+        },
         "doctrine/deprecations": {
             "version": "1.1.6",
             "hash": "tree-v2:8abdb22c79e82b9ea4884ab18dbaa595bb5315736231fa9e310b9d70a3ab0815"
         },
+        "doctrine/lexer": {
+            "version": "3.0.3",
+            "hash": "tree-v2:ceb1d38580329ca049a57faa28bbe978bdb36d28e0118545f31582ca14166d7b"
+        },
         "driftingly/rector-laravel": {
             "version": "2.6.2",
             "hash": "tree-v2:7ad85f8d2c4fc8ae611466f654d894413f9d066999bbede4abdccda6f230be4e"
+        },
+        "egulias/email-validator": {
+            "version": "4.0.4",
+            "hash": "tree-v2:7621e009898aea85dfa2ad91d25a3441db9ef5bf90a1b55e9b8396b3a43830f9"
         },
         "entropy/entropy": {
             "version": "0.4.30",
@@ -350,9 +362,25 @@
             "version": "v13.35.0",
             "hash": "tree-v2:6669c0940d517be201ede783cc720fe188f50db1020d4b7a02a7e00cab281ae2"
         },
+        "illuminate/json-schema": {
+            "version": "v13.35.0",
+            "hash": "tree-v2:266ab73e8ee4738c49dc7f9bd1ff38b6d7f6984957844fee1fcdf8cb04d02eba"
+        },
+        "illuminate/routing": {
+            "version": "v13.35.0",
+            "hash": "tree-v2:eb1aa46eb246ae9801322a16e621827836f1463dabc5f7cca6f1acd3061bbacc"
+        },
         "illuminate/session": {
             "version": "v13.35.0",
             "hash": "tree-v2:54b8c7b35b3223e445b5480559037484f378419ec47884f69bcb86fb54c95743"
+        },
+        "illuminate/translation": {
+            "version": "v13.35.0",
+            "hash": "tree-v2:fff3990e4fbdf40d3326a0ab6326c9577d12f780e34a8f6c82808dc64727ad6c"
+        },
+        "illuminate/validation": {
+            "version": "v13.35.0",
+            "hash": "tree-v2:e229e5ef8d9292d19d5feccaa6a5b23bb6db53953f2bcd77309bafe1365ca7b4"
         },
         "jean85/pretty-package-versions": {
             "version": "2.1.1",
@@ -362,9 +390,21 @@
             "version": "v3.13.0",
             "hash": "tree-v2:e12ed6ea9e2fd88a18b7242587a63fedba8fcd177f356618f18393463d156da5"
         },
+        "laravel/boost": {
+            "version": "v2.10.3",
+            "hash": "tree-v2:c05dc562a93761a43726eacfcd5b8cec76aacb230eb898e0d6104420ce17f0f8"
+        },
+        "laravel/mcp": {
+            "version": "v1.0.1",
+            "hash": "tree-v2:9c474c4e3f7a9e35fd7d2ec2ffb24e02ac5d185328243fda4ff9cba7903dac70"
+        },
         "laravel/pint": {
             "version": "v1.32.1",
             "hash": "tree-v2:6011ed0cc05d840c85dac563c64a2461bc3c09f131e7c819f75abd73c9502f64"
+        },
+        "laravel/roster": {
+            "version": "v1.0.0",
+            "hash": "tree-v2:da430a9f3d9fb06a3812b0e8a116d8265a06dce1bfde4182a1de7154ba15ad67"
         },
         "laravel/serializable-closure": {
             "version": "v2.1.0",
@@ -397,6 +437,10 @@
         "pestphp/pest-plugin": {
             "version": "v5.0.0",
             "hash": "tree-v2:b6f2d3bb2a36415881680c5ec7d6a9beab299f6a23c0ed3e1b446b884c21e7da"
+        },
+        "pestphp/pest-plugin-agent": {
+            "version": "v5.0.0",
+            "hash": "tree-v2:4806df91843a4d3d5ed8a171834f1cec4dff2541759efec419a994957ebfb42b"
         },
         "pestphp/pest-plugin-arch": {
             "version": "v5.0.0",
@@ -557,6 +601,14 @@
         "symfony/polyfill-intl-idn": {
             "version": "v1.43.0",
             "hash": "tree-v2:c923d31d3d92c64e387245034bf7ca44284e3ec6674004efd41e7d13da99a492"
+        },
+        "symfony/routing": {
+            "version": "v8.1.8",
+            "hash": "tree-v2:04d542f6b976a5c3e1fea7952e8ac8a7d488aba8853371a69c52d42b706f1e4a"
+        },
+        "symfony/yaml": {
+            "version": "v8.1.8",
+            "hash": "tree-v2:8d990fa9be574dec0fbb19199b855c71c40515b9feebaa996d44de7c954143ee"
         },
         "symplify/rule-doc-generator-contracts": {
             "version": "11.2.0",
