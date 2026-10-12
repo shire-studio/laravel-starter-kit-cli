@@ -12,9 +12,9 @@
     <a href="https://packagist.org/packages/shire-studio/laravel-starter-kit-cli"><img src="https://img.shields.io/packagist/l/shire-studio/laravel-starter-kit-cli" alt="License"></a>
 </p>
 
-A command line tool for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). It works much like the official `laravel` installer. Use it to create new projects from the starter kit, and to pull later starter kit changes into projects you have already created.
+The installer for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). Use `new` to start a project from the kit, and `update` to bring newer kit changes into a project you've already built with it. Think of it as the `laravel` installer, but for our kit.
 
-> This CLI is in early development. Neither command is available yet.
+> Work in progress. Neither command is ready yet.
 
 ## Requirements
 
@@ -24,21 +24,17 @@ A command line tool for the [Shire Studio Laravel starter kit](https://github.co
 
 ## Installation
 
-Installation instructions will be added once the first release is published.
+Coming with the first release.
 
 ## Usage
 
-### `new`
+### Create a new project
 
-> In progress.
+`new` is being built now. Docs will follow once it's merged.
 
-Creates a fresh project from the starter kit. Usage and options will be documented here once the command lands.
+### Update an existing project
 
-### `update`
-
-> Planned.
-
-Run inside a project you created from the starter kit to pull in later starter kit changes. Usage and options will be documented here once the command lands.
+`update` is next. Run it inside a project created from the kit to pull in newer kit changes.
 
 ## Local Development
 
@@ -53,30 +49,28 @@ composer test
 
 ### Available Commands
 
-- `composer lint`: Runs Rector (refactoring) and Pint (formatting)
-- `composer test:lint`: Runs Pint and Rector in dry run mode
-- `composer test:types`: Runs PHPStan (Larastan at level max)
-- `composer test:type-coverage`: Ensures 100% type coverage with Pest
-- `composer test:unit`: Runs the Pest suite in parallel with a 100% code coverage requirement
-- `composer test`: Runs the complete suite (linting, static analysis, type coverage and unit tests)
+- `composer lint`: fix code style with Rector and Pint
+- `composer test:lint`: check code style without changing anything
+- `composer test:types`: PHPStan (Larastan, level max)
+- `composer test:type-coverage`: 100% type coverage
+- `composer test:unit`: Pest in parallel, 100% code coverage
+- `composer test`: all of the above
 
-The Pest suite also applies the `php`, `strict` and `security` architecture presets.
+The unit suite also runs Pest's `php`, `strict` and `security` arch presets.
 
-GitHub Actions runs `composer test` on PHP 8.5 for pushes to `main` and pull requests against it. Dependabot keeps GitHub Actions and Composer dependencies up to date.
+CI runs `composer test` on PHP 8.5 for every push and pull request to `main`. Dependabot handles GitHub Actions and Composer updates.
 
-### Dependency Trust
+### Vetting Dependencies
 
-This project uses [laravel/vet](https://github.com/laravel/vet), a Composer plugin that checks installed packages against the hashes recorded in `vet.json`. It also holds back any release published less than 2 days ago (`minimum-release-age` in `vet.json`).
+[laravel/vet](https://github.com/laravel/vet) checks every installed package against the hashes in `vet.json`, and holds back anything released in the last 2 days (`minimum-release-age`).
 
-After adding, removing or updating a dependency, audit the changes and record the packages you trust:
+When you add, remove or update a package, run vet and commit the updated `vet.json` with your lock file:
 
 ```bash
 vendor/bin/vet
 ```
 
-Commit the updated `vet.json` together with `composer.json` and `composer.lock`.
-
-> `composer.json` holds back `brianium/paratest` 7.26.1 and later with a `conflict` entry, because its new `WrapperWorker` constructor breaks parallel runs on Pest 5.3.1. Remove the entry once Pest ships a fix.
+**Note:** `brianium/paratest` is held below 7.26.1 by a `conflict` entry in `composer.json`. Its new `WrapperWorker` constructor breaks parallel runs on Pest 5.3.1. Drop the conflict once Pest fixes it.
 
 ### Building the PHAR
 
@@ -84,16 +78,16 @@ Commit the updated `vet.json` together with `composer.json` and `composer.lock`.
 php application app:build
 ```
 
-This asks for a build version (or pass `--build-version`) and writes a single file executable to `builds/application`. The PHAR contents are configured in `box.json`.
+The PHAR ends up in `builds/application`. You'll be asked for a version unless you pass `--build-version`. What goes into it is set in `box.json`.
 
 ## Contributing
 
-1. Create a feature branch (`git checkout -b feat/my-feature` or `git checkout -b fix/my-fix`)
+1. Branch off `main` (`feat/my-feature` or `fix/my-fix`)
 2. Make your changes
-3. Run `composer lint`, then make sure `composer test` passes
-4. Commit using [Conventional Commits](https://www.conventionalcommits.org) (for example `feat: add new command`)
+3. Run `composer lint`, then `composer test`
+4. Write commits as [Conventional Commits](https://www.conventionalcommits.org), e.g. `feat: add update command`
 5. Open a pull request against `main`
 
 ## License
 
-This project is open source software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Released under the [MIT license](https://opensource.org/licenses/MIT).
