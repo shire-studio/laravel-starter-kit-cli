@@ -12,7 +12,7 @@
     <a href="https://packagist.org/packages/shire-studio/laravel-starter-kit-cli"><img src="https://img.shields.io/packagist/l/shire-studio/laravel-starter-kit-cli" alt="License"></a>
 </p>
 
-The installer for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). Use `new` to start a project from the kit, and `update` to bring newer kit changes into a project you've already built with it. Think of it as the `laravel` installer, but for our kit.
+The installer for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). Use `new` to start a project from the starter kit, and `update` to bring newer starter kit changes into a project you've already built with it. Think of it as the `laravel` installer, but for our starter kit.
 
 > Work in progress. Neither command is ready yet.
 
@@ -34,7 +34,7 @@ Coming with the first release.
 
 ### Update an existing project
 
-`update` is next. Run it inside a project created from the kit to pull in newer kit changes.
+`update` is next. Run it inside a project created from the starter kit to pull in newer starter kit changes.
 
 ## Local Development
 
