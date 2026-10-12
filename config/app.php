@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Providers\AppServiceProvider;
 
 return [
@@ -28,7 +30,7 @@ return [
     |
     */
 
-    'version' => app('git.version'),
+    'version' => resolve('git.version'),
 
     /*
     |--------------------------------------------------------------------------
