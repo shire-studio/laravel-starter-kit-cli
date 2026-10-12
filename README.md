@@ -1,4 +1,14 @@
-# Laravel Starter Kit CLI
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="art/header-dark.png">
+    <img alt="Logo for Laravel Starter Kit CLI" src="art/header-light.png">
+</picture>
+
+<br/>
+<br/>
+
+<p>
+    <a href="https://github.com/shire-studio/laravel-starter-kit-cli/actions"><img src="https://github.com/shire-studio/laravel-starter-kit-cli/actions/workflows/tests.yml/badge.svg" alt="Build Status"></a>
+</p>
 
 A command line tool for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). It works much like the official `laravel` installer. Use it to create new projects from the starter kit, and to pull later starter kit changes into projects you have already created.
 
