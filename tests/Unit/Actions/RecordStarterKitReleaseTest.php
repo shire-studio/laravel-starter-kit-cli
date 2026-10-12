@@ -26,3 +26,12 @@ it('records the release the project was created from', function (): void {
 
         JSON);
 });
+
+it('records the release in the configured manifest file', function (): void {
+    config(['starter-kit.manifest_filename' => 'starter-kit.lock']);
+
+    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory);
+
+    expect("{$this->directory}/starter-kit.lock")->toBeFile()
+        ->and("{$this->directory}/.starter-kit.json")->not->toBeFile();
+});

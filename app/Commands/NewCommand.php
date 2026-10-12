@@ -57,14 +57,16 @@ final class NewCommand extends Command
 
     public function handle(
         FindMissingTools $findMissingTools,
-        DeleteDirectory $deleteDirectory,
         ResolveLatestStarterKitRelease $resolveLatestStarterKitRelease,
+        DeleteDirectory $deleteDirectory,
         CreateProject $createProject,
         RecordStarterKitRelease $recordStarterKitRelease,
         InstallFrontend $installFrontend,
         InitialiseGitRepository $initialiseGitRepository,
     ): int {
         $name = $this->argument('name');
+        $shouldInstallFrontend = $this->option('pnpm') === true;
+        $shouldInitialiseGitRepository = $this->option('git') === true;
 
         $nameError = $this->validateName($name);
 
@@ -74,21 +76,17 @@ final class NewCommand extends Command
             return self::FAILURE;
         }
 
-        $missingTools = $findMissingTools->handle($this->requiredTools());
+        $missingTools = $findMissingTools->handle($this->requiredTools($shouldInstallFrontend, $shouldInitialiseGitRepository));
 
         if ($missingTools !== []) {
-            error('The following required tools could not be found: '.implode(', ', $missingTools).'.');
+            $missingToolList = implode(', ', $missingTools);
+
+            error("The following required tools could not be found: {$missingToolList}.");
 
             return self::FAILURE;
         }
 
         $directory = $this->directoryFor($name);
-
-        if (File::isDirectory($directory)) {
-            warning("Removing the existing [{$name}] directory.");
-
-            $deleteDirectory->handle($directory);
-        }
 
         try {
             $release = spin(
@@ -97,6 +95,12 @@ final class NewCommand extends Command
             );
 
             info("Using starter kit {$release->version}.");
+
+            if (File::isDirectory($directory)) {
+                warning("Removing the existing [{$name}] directory.");
+
+                $deleteDirectory->handle($directory);
+            }
 
             spin(
                 fn () => $createProject->handle($release, $directory),
@@ -107,7 +111,7 @@ final class NewCommand extends Command
 
             info("Project created in [{$directory}].");
 
-            if ($this->option('pnpm') === true) {
+            if ($shouldInstallFrontend) {
                 spin(
                     fn () => $installFrontend->handle($directory),
                     'Installing the frontend dependencies and building the assets...',
@@ -116,7 +120,7 @@ final class NewCommand extends Command
                 info('Frontend assets built.');
             }
 
-            if ($this->option('git') === true) {
+            if ($shouldInitialiseGitRepository) {
                 spin(
                     fn () => $initialiseGitRepository->handle($directory, "chore: create project from starter kit {$release->version}"),
                     'Initialising a git repository...',
@@ -125,10 +129,12 @@ final class NewCommand extends Command
                 info('Git repository initialised.');
             }
         } catch (ProcessFailedException $exception) {
-            $this->output->write($exception->result->errorOutput());
-            $this->output->write($exception->result->output());
+            $result = $exception->result;
 
-            error("The command [{$exception->result->command()}] failed with exit code {$exception->result->exitCode()}.");
+            $this->output->write($result->errorOutput());
+            $this->output->write($result->output());
+
+            error("The command [{$result->command()}] failed with exit code {$result->exitCode()}.");
 
             return self::FAILURE;
         } catch (CouldNotResolveStarterKitRelease $exception) {
@@ -137,7 +143,7 @@ final class NewCommand extends Command
             return self::FAILURE;
         }
 
-        note(implode(PHP_EOL, $this->nextSteps($name)));
+        note(implode(PHP_EOL, $this->nextSteps($name, $shouldInstallFrontend)));
 
         outro('Your project is ready.');
 
@@ -183,31 +189,33 @@ final class NewCommand extends Command
 
     private function directoryFor(string $name): string
     {
-        return getcwd().DIRECTORY_SEPARATOR.$name;
+        $workingDirectory = getcwd();
+
+        return "{$workingDirectory}/{$name}";
     }
 
     /**
      * @return list<string>
      */
-    private function requiredTools(): array
+    private function requiredTools(bool $shouldInstallFrontend, bool $shouldInitialiseGitRepository): array
     {
         return [
             'php',
             'composer',
-            ...($this->option('pnpm') === true ? ['pnpm'] : []),
-            ...($this->option('git') === true ? ['git'] : []),
+            ...($shouldInstallFrontend ? ['pnpm'] : []),
+            ...($shouldInitialiseGitRepository ? ['git'] : []),
         ];
     }
 
     /**
      * @return list<string>
      */
-    private function nextSteps(string $name): array
+    private function nextSteps(string $name, bool $shouldInstallFrontend): array
     {
         return [
             'Next steps:',
             "  cd {$name}",
-            ...($this->option('pnpm') === true ? [] : ['  pnpm install']),
+            ...($shouldInstallFrontend ? [] : ['  pnpm install']),
             '  composer dev',
         ];
     }

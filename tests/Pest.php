@@ -23,7 +23,10 @@ pest()->extend(TestCase::class)
 
 function temporaryDirectory(): string
 {
-    $directory = sys_get_temp_dir().'/starter-kit-cli-tests/'.Str::random(16);
+    $temporaryDirectory = sys_get_temp_dir();
+    $randomName = Str::random(16);
+
+    $directory = "{$temporaryDirectory}/starter-kit-cli-tests/{$randomName}";
 
     File::ensureDirectoryExists($directory);
 

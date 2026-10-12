@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\ResolveLatestStarterKitRelease;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
 
 it('resolves the latest stable release', function (): void {
@@ -42,3 +43,53 @@ it('throws when composer cannot find the package', function (): void {
 
     resolve(ResolveLatestStarterKitRelease::class)->handle();
 })->throws(ProcessFailedException::class);
+
+it('resolves the release of the configured package', function (): void {
+    config(['starter-kit.package' => 'acme/starter-kit']);
+
+    Process::fake([
+        '*' => Process::result(composerShowOutput(['v2.0.0'])),
+    ]);
+
+    $release = resolve(ResolveLatestStarterKitRelease::class)->handle();
+
+    expect($release)
+        ->package->toBe('acme/starter-kit')
+        ->version->toBe('v2.0.0');
+
+    Process::assertRan(['composer', 'show', 'acme/starter-kit', 'v2.0.0', '--all', '--format=json']);
+});
+
+it('runs composer outside the current project so its repositories are ignored', function (): void {
+    Process::fake([
+        '*' => Process::result(composerShowOutput(['v1.4.0'])),
+    ]);
+
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
+
+    Process::assertRanTimes(fn (PendingProcess $process): bool => $process->path === sys_get_temp_dir(), 2);
+});
+
+it('throws when composer returns output that is not json', function (): void {
+    Process::fake([
+        '*' => Process::result('Composer could not reach the repository.'),
+    ]);
+
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
+})->throws(CouldNotResolveStarterKitRelease::class, 'Composer returned metadata for [shire-studio/laravel-starter-kit] that could not be read.');
+
+it('throws when composer returns json that is not an object', function (): void {
+    Process::fake([
+        '*' => Process::result('"shire-studio/laravel-starter-kit"'),
+    ]);
+
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
+})->throws(CouldNotResolveStarterKitRelease::class, 'Composer returned metadata for [shire-studio/laravel-starter-kit] that could not be read.');
+
+it('throws when the release metadata has no source', function (): void {
+    Process::fake([
+        '*' => Process::result((string) json_encode(['versions' => ['v1.4.0']])),
+    ]);
+
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
+})->throws(CouldNotResolveStarterKitRelease::class, 'Composer returned metadata for [shire-studio/laravel-starter-kit] that could not be read.');

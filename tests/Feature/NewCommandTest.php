@@ -152,6 +152,21 @@ it('overwrites an existing directory when forced', function (): void {
         ->and("{$this->projectDirectory}/.starter-kit.json")->toBeFile();
 });
 
+it('keeps an existing directory when the starter kit release cannot be resolved', function (): void {
+    fakeStarterKitProcesses([
+        "*'show'*" => Process::result(errorOutput: 'Could not reach packagist.org.', exitCode: 1),
+    ]);
+
+    File::ensureDirectoryExists($this->projectDirectory);
+    File::put("{$this->projectDirectory}/old-file.txt", 'old');
+
+    $this->artisan('new', ['name' => 'example-app', '--force' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('Could not reach packagist.org.')
+        ->assertFailed();
+
+    expect("{$this->projectDirectory}/old-file.txt")->toBeFile();
+});
+
 it('fails when required tools are missing', function (): void {
     fakeStarterKitProcesses([
         "'pnpm' '--version'" => Process::result(exitCode: 127),

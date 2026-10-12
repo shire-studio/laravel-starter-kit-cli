@@ -6,34 +6,44 @@ namespace App\Actions;
 
 use App\Data\StarterKitRelease;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
+use Illuminate\Container\Attributes\Config;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
+use InvalidArgumentException;
+use JsonException;
 
 final readonly class ResolveLatestStarterKitRelease
 {
-    private const string PACKAGE = 'shire-studio/laravel-starter-kit';
+    public function __construct(
+        #[Config('starter-kit.package')]
+        private string $package,
+    ) {}
 
     public function handle(): StarterKitRelease
     {
-        $version = $this->latestStableVersion();
+        try {
+            $version = $this->latestStableVersion();
 
-        $package = $this->showPackage($version);
+            $metadata = $this->packageMetadata($version);
 
-        return new StarterKitRelease(
-            package: self::PACKAGE,
-            version: $version,
-            reference: Arr::string($package, 'source.reference'),
-            repository: Arr::string($package, 'source.url'),
-        );
+            return new StarterKitRelease(
+                package: $this->package,
+                version: $version,
+                reference: Arr::string($metadata, 'source.reference'),
+                repository: Arr::string($metadata, 'source.url'),
+            );
+        } catch (JsonException|InvalidArgumentException) {
+            throw CouldNotResolveStarterKitRelease::invalidMetadata($this->package);
+        }
     }
 
     private function latestStableVersion(): string
     {
-        $version = collect(Arr::array($this->showPackage(), 'versions'))
+        $version = collect(Arr::array($this->packageMetadata(), 'versions'))
             ->first(fn (mixed $version): bool => is_string($version) && preg_match('/^v?\d+\.\d+\.\d+$/', $version) === 1);
 
         if (! is_string($version)) {
-            throw CouldNotResolveStarterKitRelease::noStableVersion(self::PACKAGE);
+            throw CouldNotResolveStarterKitRelease::noStableVersion($this->package);
         }
 
         return $version;
@@ -42,16 +52,18 @@ final readonly class ResolveLatestStarterKitRelease
     /**
      * @return array<array-key, mixed>
      */
-    private function showPackage(?string $version = null): array
+    private function packageMetadata(?string $version = null): array
     {
-        $command = ['composer', 'show', self::PACKAGE, ...($version === null ? [] : [$version]), '--all', '--format=json'];
+        $command = ['composer', 'show', $this->package, ...($version === null ? [] : [$version]), '--all', '--format=json'];
 
-        $output = Process::run($command)->throw()->output();
+        $output = Process::path(sys_get_temp_dir())->run($command)->throw()->output();
 
-        $package = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+        $metadata = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
 
-        assert(is_array($package));
+        if (! is_array($metadata)) {
+            throw CouldNotResolveStarterKitRelease::invalidMetadata($this->package);
+        }
 
-        return $package;
+        return $metadata;
     }
 }
