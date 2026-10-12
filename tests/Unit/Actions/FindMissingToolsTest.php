@@ -12,7 +12,7 @@ it('returns the tools that cannot be run', function (): void {
         '*' => Process::result('1.0.0'),
     ]);
 
-    $missingTools = new FindMissingTools()->handle(['php', 'composer', 'pnpm', 'git']);
+    $missingTools = resolve(FindMissingTools::class)->handle(['php', 'composer', 'pnpm', 'git']);
 
     expect($missingTools)->toBe(['pnpm', 'git']);
 });
@@ -20,7 +20,7 @@ it('returns the tools that cannot be run', function (): void {
 it('returns nothing when every tool is installed', function (): void {
     Process::fake();
 
-    $missingTools = new FindMissingTools()->handle(['php', 'composer']);
+    $missingTools = resolve(FindMissingTools::class)->handle(['php', 'composer']);
 
     expect($missingTools)->toBeEmpty();
 

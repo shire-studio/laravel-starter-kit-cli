@@ -14,7 +14,7 @@ afterEach(function (): void {
 });
 
 it('records the release the project was created from', function (): void {
-    new RecordStarterKitRelease()->handle(starterKitRelease(), $this->directory);
+    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory);
 
     expect(File::get("{$this->directory}/.starter-kit.json"))->toBe(<<<'JSON'
         {

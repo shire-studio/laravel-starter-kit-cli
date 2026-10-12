@@ -40,9 +40,6 @@ function starterKitRelease(): StarterKitRelease
     );
 }
 
-/**
- * @param  list<string>  $versions
- */
 function composerShowOutput(array $versions, string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850'): string
 {
     return (string) json_encode([

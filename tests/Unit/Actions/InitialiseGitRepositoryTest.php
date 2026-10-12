@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Process;
 it('initialises a repository and commits every file', function (): void {
     Process::fake();
 
-    new InitialiseGitRepository()->handle('/projects/example-app', 'chore: initial commit');
+    resolve(InitialiseGitRepository::class)->handle('/projects/example-app', 'chore: initial commit');
 
     Process::assertRanInOrder([
         fn (PendingProcess $process): bool => $process->command === ['git', 'init', '--quiet', '--initial-branch=main'] && $process->path === '/projects/example-app',
@@ -25,5 +25,5 @@ it('throws when git fails', function (): void {
         '*' => Process::result(),
     ]);
 
-    new InitialiseGitRepository()->handle('/projects/example-app', 'chore: initial commit');
+    resolve(InitialiseGitRepository::class)->handle('/projects/example-app', 'chore: initial commit');
 })->throws(ProcessFailedException::class);

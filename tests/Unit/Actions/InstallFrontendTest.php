@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Process;
 it('installs the dependencies, transforms the types and builds the assets', function (): void {
     Process::fake();
 
-    new InstallFrontend()->handle('/projects/example-app');
+    resolve(InstallFrontend::class)->handle('/projects/example-app');
 
     Process::assertRanInOrder([
         fn (PendingProcess $process): bool => $process->command === ['pnpm', 'install'] && $process->path === '/projects/example-app',
@@ -25,7 +25,7 @@ it('stops when a command fails', function (): void {
         '*' => Process::result(),
     ]);
 
-    expect(fn () => new InstallFrontend()->handle('/projects/example-app'))->toThrow(ProcessFailedException::class);
+    expect(fn () => resolve(InstallFrontend::class)->handle('/projects/example-app'))->toThrow(ProcessFailedException::class);
 
     Process::assertDidntRun(['pnpm', 'run', 'build']);
 });

@@ -21,9 +21,6 @@ afterEach(function (): void {
     File::deleteDirectory($this->workingDirectory);
 });
 
-/**
- * @param  array<string, FakeProcessResult>  $overrides
- */
 function fakeStarterKitProcesses(array $overrides = []): void
 {
     Process::fake($overrides + [
@@ -89,20 +86,45 @@ it('skips the optional steps when running without interaction', function (): voi
     Process::assertDidntRun(['git', 'add', '--all']);
 });
 
-it('rejects an invalid project name', function (string $name): void {
+it('rejects a project name that starts with a dot', function (): void {
     Process::fake();
 
-    $this->artisan('new', ['name' => $name, '--no-interaction' => true])
+    $this->artisan('new', ['name' => '.example-app', '--no-interaction' => true])
         ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
         ->assertFailed();
 
     Process::assertNothingRan();
-})->with([
-    'hidden directory' => '.example-app',
-    'parent directory' => '..',
-    'path' => 'projects/example-app',
-    'spaces' => 'example app',
-]);
+});
+
+it('rejects a project name that points to the parent directory', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['name' => '..', '--no-interaction' => true])
+        ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('rejects a project name that contains a path separator', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['name' => 'projects/example-app', '--no-interaction' => true])
+        ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('rejects a project name that contains spaces', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['name' => 'example app', '--no-interaction' => true])
+        ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
 
 it('refuses to overwrite an existing directory', function (): void {
     Process::fake();

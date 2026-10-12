@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Actions\CreateProject;
+use App\Actions\DeleteDirectory;
 use App\Actions\FindMissingTools;
 use App\Actions\InitialiseGitRepository;
 use App\Actions\InstallFrontend;
@@ -56,6 +57,7 @@ final class NewCommand extends Command
 
     public function handle(
         FindMissingTools $findMissingTools,
+        DeleteDirectory $deleteDirectory,
         ResolveLatestStarterKitRelease $resolveLatestStarterKitRelease,
         CreateProject $createProject,
         RecordStarterKitRelease $recordStarterKitRelease,
@@ -85,7 +87,7 @@ final class NewCommand extends Command
         if (File::isDirectory($directory)) {
             warning("Removing the existing [{$name}] directory.");
 
-            File::deleteDirectory($directory);
+            $deleteDirectory->handle($directory);
         }
 
         try {

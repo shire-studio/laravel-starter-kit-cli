@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Process;
 it('creates the project from the given release', function (): void {
     Process::fake();
 
-    new CreateProject()->handle(starterKitRelease(), '/projects/example-app');
+    resolve(CreateProject::class)->handle(starterKitRelease(), '/projects/example-app');
 
     Process::assertRan([
         'composer',
@@ -27,5 +27,5 @@ it('throws when composer fails', function (): void {
         '*' => Process::result(exitCode: 1),
     ]);
 
-    new CreateProject()->handle(starterKitRelease(), '/projects/example-app');
+    resolve(CreateProject::class)->handle(starterKitRelease(), '/projects/example-app');
 })->throws(ProcessFailedException::class);

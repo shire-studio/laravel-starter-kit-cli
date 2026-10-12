@@ -13,7 +13,7 @@ it('resolves the latest stable release', function (): void {
         '*' => Process::result(composerShowOutput(['v2.0.0-beta1', 'v1.4.0', 'v1.3.10', 'dev-main'], 'not-the-stable-reference')),
     ]);
 
-    $release = new ResolveLatestStarterKitRelease()->handle();
+    $release = resolve(ResolveLatestStarterKitRelease::class)->handle();
 
     expect($release)
         ->package->toBe('shire-studio/laravel-starter-kit')
@@ -32,7 +32,7 @@ it('throws when there is no stable release', function (): void {
         '*' => Process::result(composerShowOutput(['v2.0.0-beta1', 'dev-main'])),
     ]);
 
-    new ResolveLatestStarterKitRelease()->handle();
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
 })->throws(CouldNotResolveStarterKitRelease::class, 'No stable release of [shire-studio/laravel-starter-kit] could be found.');
 
 it('throws when composer cannot find the package', function (): void {
@@ -40,5 +40,5 @@ it('throws when composer cannot find the package', function (): void {
         '*' => Process::result(errorOutput: 'Package "shire-studio/laravel-starter-kit" not found.', exitCode: 1),
     ]);
 
-    new ResolveLatestStarterKitRelease()->handle();
+    resolve(ResolveLatestStarterKitRelease::class)->handle();
 })->throws(ProcessFailedException::class);
