@@ -33,14 +33,23 @@ function temporaryDirectory(): string
     return (string) realpath($directory);
 }
 
-function starterKitRelease(): StarterKitRelease
+function starterKitRelease(string $version = 'v1.4.0', string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850'): StarterKitRelease
 {
     return new StarterKitRelease(
         package: 'shire-studio/laravel-starter-kit',
-        version: 'v1.4.0',
-        reference: 'c31ae68197d092fbaac6ac68712b44f230e27850',
+        version: $version,
+        reference: $reference,
         repository: 'https://github.com/shire-studio/laravel-starter-kit.git',
     );
+}
+
+function createFiles(string $directory, array $files): void
+{
+    foreach ($files as $path => $contents) {
+        File::ensureDirectoryExists(dirname("{$directory}/{$path}"));
+
+        File::put("{$directory}/{$path}", $contents);
+    }
 }
 
 function composerShowOutput(array $versions, string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850'): string

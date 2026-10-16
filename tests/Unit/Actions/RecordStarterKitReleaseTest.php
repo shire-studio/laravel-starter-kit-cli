@@ -35,3 +35,12 @@ it('records the release in the configured manifest file', function (): void {
     expect("{$this->directory}/starter-kit.lock")->toBeFile()
         ->and("{$this->directory}/.starter-kit.json")->not->toBeFile();
 });
+
+it('records the features the project has removed', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory, ['Authentication (login, registration and two factor)']);
+
+    expect(File::json("{$this->directory}/.starter-kit.json"))->toMatchArray([
+        'version' => 'v1.4.0',
+        'removed' => ['Authentication (login, registration and two factor)'],
+    ]);
+});

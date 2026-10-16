@@ -62,9 +62,9 @@ return [
 
     'providers' => [
         AppServiceProvider::class,
+        ViewServiceProvider::class,
         ...class_exists(BoostServiceProvider::class) ? [
             RoutingServiceProvider::class,
-            ViewServiceProvider::class,
             BoostServiceProvider::class,
         ] : [],
     ],
