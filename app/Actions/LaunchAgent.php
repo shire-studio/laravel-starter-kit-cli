@@ -11,10 +11,28 @@ final readonly class LaunchAgent
 {
     public function handle(Agent $agent, string $directory, string $prompt): int
     {
+        $command = $agent->interactiveCommand($prompt);
+        $terminalDevice = $this->terminalDevice();
+
         $process = Process::path($directory)->forever();
 
-        return $process->tty($process->supportsTty())
-            ->run($agent->interactiveCommand($prompt))
-            ->exitCode() ?? 1;
+        if ($terminalDevice === null) {
+            return $process->tty($process->supportsTty())->run($command)->exitCode() ?? 1;
+        }
+
+        return $process->run(['sh', '-c', 'exec "$@" <"$0" >"$0" 2>"$0"', $terminalDevice, ...$command])->exitCode() ?? 1;
+    }
+
+    private function terminalDevice(): ?string
+    {
+        $result = Process::run(['ps', '-o', 'tty=', '-p', (string) getmypid()]);
+
+        $terminal = mb_trim($result->output());
+
+        if ($result->failed() || in_array($terminal, ['', '?', '??'], true)) {
+            return null;
+        }
+
+        return "/dev/{$terminal}";
     }
 }

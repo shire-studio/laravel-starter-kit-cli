@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Actions\CompleteStarterKitUpdate;
-use App\Actions\DetectStarterKitVersion;
 use App\Actions\FindInstalledAgents;
 use App\Actions\FindMissingTools;
 use App\Actions\IgnoreUpdateDirectory;
@@ -13,7 +12,9 @@ use App\Actions\IsGitRepository;
 use App\Actions\LaunchAgent;
 use App\Actions\ListStableStarterKitVersions;
 use App\Actions\ListUncommittedChanges;
+use App\Actions\PrepareStarterKitDetection;
 use App\Actions\PrepareStarterKitUpdate;
+use App\Actions\ReadDetectedStarterKitVersion;
 use App\Actions\ReadProposedRemovedFeatures;
 use App\Actions\ReadStarterKitManifest;
 use App\Actions\RecordStarterKitRelease;
@@ -56,11 +57,12 @@ final class UpdateCommand extends Command
         FindInstalledAgents $findInstalledAgents,
         IgnoreUpdateDirectory $ignoreUpdateDirectory,
         ListStableStarterKitVersions $listStableStarterKitVersions,
-        DetectStarterKitVersion $detectStarterKitVersion,
+        PrepareStarterKitDetection $prepareStarterKitDetection,
+        LaunchAgent $launchAgent,
+        ReadDetectedStarterKitVersion $readDetectedStarterKitVersion,
         ResolveStarterKitRelease $resolveStarterKitRelease,
         RecordStarterKitRelease $recordStarterKitRelease,
         PrepareStarterKitUpdate $prepareStarterKitUpdate,
-        LaunchAgent $launchAgent,
         ReadProposedRemovedFeatures $readProposedRemovedFeatures,
         CompleteStarterKitUpdate $completeStarterKitUpdate,
     ): int {
@@ -156,7 +158,11 @@ final class UpdateCommand extends Command
 
                 $versions = $listStableStarterKitVersions->handle();
 
-                $detectedVersion = $detectStarterKitVersion->handle($agent, $directory, $latestRelease, $versions);
+                $prepareStarterKitDetection->handle($directory, $latestRelease, $versions);
+
+                $this->handOver($launchAgent, $agent, $directory, 'DETECT.md');
+
+                $detectedVersion = $readDetectedStarterKitVersion->handle($directory);
 
                 if ($detectedVersion === null || ! in_array($detectedVersion, $versions, true)) {
                     error("{$agent->label()} did not record a starter kit version that exists. Add [{$manifestFilename}] by hand or run update again.");
@@ -229,11 +235,7 @@ final class UpdateCommand extends Command
                 return self::SUCCESS;
             }
 
-            $exitCode = $launchAgent->handle($agent, $directory, "Read {$updateDirectoryName}/PROMPT.md and follow the instructions in it.");
-
-            if ($exitCode !== 0) {
-                warning("{$agent->label()} exited with code {$exitCode}.");
-            }
+            $this->handOver($launchAgent, $agent, $directory, 'PROMPT.md');
 
             note(implode(PHP_EOL, $this->changedFileLines($listUncommittedChanges->handle($directory))));
 
@@ -290,6 +292,17 @@ final class UpdateCommand extends Command
             ['agent', null, InputOption::VALUE_REQUIRED, "The agent to hand the update to: {$agentChoiceList}"],
             ['force', 'f', InputOption::VALUE_NONE, 'Run even if the project has uncommitted changes'],
         ];
+    }
+
+    private function handOver(LaunchAgent $launchAgent, Agent $agent, string $directory, string $instructionsFilename): void
+    {
+        $updateDirectoryName = Config::string('starter-kit.update_directory');
+
+        $exitCode = $launchAgent->handle($agent, $directory, "Read {$updateDirectoryName}/{$instructionsFilename} and follow the instructions in it.");
+
+        if ($exitCode !== 0) {
+            warning("{$agent->label()} exited with code {$exitCode}.");
+        }
     }
 
     /**

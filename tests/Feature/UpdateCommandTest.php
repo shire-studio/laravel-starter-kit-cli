@@ -251,6 +251,19 @@ it('fails when the agent does not detect a starter kit version', function (): vo
         ->assertFailed();
 });
 
+it('warns when the agent crashes while detecting the version', function (): void {
+    File::delete("{$this->projectDirectory}/.starter-kit.json");
+
+    fakeUpdateProcesses($this->projectDirectory, [
+        "'claude' 'Read .starter-kit-update/DETECT.md*" => Process::result(errorOutput: 'EINVAL: invalid argument, kqueue', exitCode: 1),
+    ]);
+
+    $this->artisan('update', ['--agent' => 'claude'])
+        ->expectsOutputToContain('Claude Code exited with code 1.')
+        ->expectsOutputToContain('Claude Code did not record a starter kit version that exists.')
+        ->assertFailed();
+});
+
 it('fails when the agent detects a version that does not exist', function (): void {
     File::delete("{$this->projectDirectory}/.starter-kit.json");
 
