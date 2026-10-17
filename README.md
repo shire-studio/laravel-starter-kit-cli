@@ -59,7 +59,7 @@ cd example-app
 starter-kit update
 ```
 
-The project has to be a git repository with no uncommitted changes, so everything the update does can be reviewed with `git diff` and undone with `git restore`.
+The project has to be in a git repository and have no uncommitted changes, so everything the update does can be reviewed with `git diff` and undone with `git restore`. It can sit inside a larger repository, such as a monorepo. Only changes inside the project directory count.
 
 The CLI works out what changed between the project's starter kit release and the latest one, then hands those changes to a coding agent of your choice to apply. The agent does the judgement work: merging upstream changes into files you've customised, keeping your own changes, and fixing anything the update breaks. These agents are supported, and only the ones you have installed are offered:
 
@@ -71,9 +71,12 @@ The CLI works out what changed between the project's starter kit release and the
 
 An update runs in these steps:
 
-1. The CLI downloads both starter kit releases and writes the changes between them to `.starter-kit-update/` in the project. It holds the diff, the old and new version of every changed file, the upstream commit messages and a prompt for the agent. The directory is excluded from git.
-2. You choose an agent, and it starts in an interactive session with the prompt. Follow along, answer its questions, and exit the session when it's done.
-3. The CLI shows the changed files and asks which of the removed features the agent found should be recorded (see below). Then it asks whether to mark the project as updated. If you say yes, it updates `.starter-kit.json` and removes `.starter-kit-update/`. If you say no, both are kept so you can carry on by hand. The end of `.starter-kit-update/PROMPT.md` lists the steps to finish the update yourself.
+1. You choose an agent, or pass one with `--agent`.
+2. The CLI downloads both starter kit releases and writes the changes between them to `.starter-kit-update/` in the project. It holds the diff, the old and new version of every changed file, the upstream commit messages (when they can be fetched) and a prompt for the agent. The directory is excluded from git.
+3. The agent starts in an interactive session with the prompt. Follow along, answer its questions, and exit the session when it's done.
+4. The CLI shows the changed files. If the agent found features you removed on purpose, you pick which ones to record (see below). Then the CLI asks whether to mark the project as updated. If you say yes, it updates `.starter-kit.json` and removes `.starter-kit-update/`.
+
+If you say no, the project keeps its current version in `.starter-kit.json`, and `.starter-kit-update/` stays in place with the agent's changes still in your working tree. To finish by hand, copy `.starter-kit-update/.starter-kit.json` (which already includes the removed features you picked) to `.starter-kit.json`, then delete `.starter-kit-update/`. The end of `.starter-kit-update/PROMPT.md` lists the same steps. Running `update` again doesn't pick up where you left off. It needs `--force` because of the uncommitted changes, and it prepares `.starter-kit-update/` from scratch.
 
 If the newer release has nothing to apply to the project (for example, only its lock files changed), the CLI marks the project as updated straight away, without an agent. This also happens with `--agent=none` and `--no-interaction`.
 
@@ -88,7 +91,7 @@ With `--agent=none`, or with `--no-interaction` and no `--agent`, the CLI only p
 
 #### Removed features stay removed
 
-If you removed a starter kit feature from your project, such as authentication, the update won't bring it back. The CLI lists every starter kit file the project no longer has, and the agent is told never to restore them, to skip changes that only touch removed code, and to ask you when it isn't sure. When the agent finds features you removed on purpose, it suggests notes about them, and the CLI saves the ones you accept in `.starter-kit.json` so future updates remember them.
+If you removed a starter kit feature from your project, such as authentication, the update won't bring it back. The CLI lists every starter kit file the project no longer has, and the agent is told never to restore them, to skip changes that only touch removed code, and to ask you when it isn't sure. When the agent finds features you removed on purpose, it suggests notes about them. The CLI asks which ones to keep and saves them in `.starter-kit.json`, so future updates remember them.
 
 #### Projects without `.starter-kit.json`
 
