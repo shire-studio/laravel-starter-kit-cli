@@ -9,14 +9,16 @@ return [
     | View Storage Paths
     |--------------------------------------------------------------------------
     |
-    | Laravel Boost renders its AI guidelines with Blade during development.
-    | The application has no views of its own, so only a compiled path in
-    | the ignored "tmp" directory is needed for the rendered templates.
+    | The update command renders its agent prompts with Blade. Views are
+    | compiled into the system temp directory because the PHAR is read
+    | only, so nothing can be written next to the application itself.
     |
     */
 
-    'paths' => [],
+    'paths' => [
+        base_path('resources/views'),
+    ],
 
-    'compiled' => base_path('tmp/views'),
+    'compiled' => env('VIEW_COMPILED_PATH', sys_get_temp_dir().'/laravel-starter-kit-cli/views'),
 
 ];
