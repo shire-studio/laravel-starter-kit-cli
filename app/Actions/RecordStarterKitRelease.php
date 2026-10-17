@@ -23,7 +23,7 @@ final readonly class RecordStarterKitRelease
         $manifest = json_encode([
             'package' => $release->package,
             'version' => $release->version,
-            'reference' => $release->reference,
+            ...($release->reference === null ? [] : ['reference' => $release->reference]),
             'repository' => $release->repository,
             ...($removedFeatures === [] ? [] : ['removed' => $removedFeatures]),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

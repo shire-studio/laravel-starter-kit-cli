@@ -39,7 +39,7 @@ final readonly class ReadStarterKitManifest
                 release: new StarterKitRelease(
                     package: Arr::string($manifest, 'package'),
                     version: Arr::string($manifest, 'version'),
-                    reference: Arr::string($manifest, 'reference'),
+                    reference: $this->reference($manifest),
                     repository: Arr::string($manifest, 'repository'),
                 ),
                 removedFeatures: $this->removedFeatures($manifest),
@@ -47,6 +47,18 @@ final readonly class ReadStarterKitManifest
         } catch (JsonException|InvalidArgumentException) {
             throw CouldNotReadStarterKitManifest::invalid($this->manifestFilename);
         }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $manifest
+     */
+    private function reference(array $manifest): ?string
+    {
+        if (! array_key_exists('reference', $manifest)) {
+            return null;
+        }
+
+        return Arr::string($manifest, 'reference');
     }
 
     /**

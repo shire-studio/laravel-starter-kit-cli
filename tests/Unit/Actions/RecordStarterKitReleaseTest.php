@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\RecordStarterKitRelease;
+use App\Data\StarterKitRelease;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
@@ -42,5 +43,22 @@ it('records the features the project has removed', function (): void {
     expect(File::json("{$this->directory}/.starter-kit.json"))->toMatchArray([
         'version' => 'v1.4.0',
         'removed' => ['Authentication (login, registration and two factor)'],
+    ]);
+});
+
+it('leaves out the reference when it is unknown', function (): void {
+    $release = new StarterKitRelease(
+        package: 'shire-studio/laravel-starter-kit',
+        version: 'v1.5.0',
+        reference: null,
+        repository: 'https://github.com/shire-studio/laravel-starter-kit.git',
+    );
+
+    resolve(RecordStarterKitRelease::class)->handle($release, $this->directory);
+
+    expect(File::json("{$this->directory}/.starter-kit.json"))->toBe([
+        'package' => 'shire-studio/laravel-starter-kit',
+        'version' => 'v1.5.0',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
     ]);
 });

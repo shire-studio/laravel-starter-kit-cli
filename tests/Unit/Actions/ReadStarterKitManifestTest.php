@@ -32,6 +32,19 @@ it('reads the features the project has removed', function (): void {
     expect($manifest->removedFeatures)->toBe(['Authentication']);
 });
 
+it('reads a manifest shipped by a starter kit release without a reference', function (): void {
+    File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
+        'package' => 'shire-studio/laravel-starter-kit',
+        'version' => 'v1.5.0',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+    ]));
+
+    $manifest = resolve(ReadStarterKitManifest::class)->handle($this->directory);
+
+    expect($manifest->release->version)->toBe('v1.5.0')
+        ->and($manifest->release->reference)->toBeNull();
+});
+
 it('returns nothing when the project has no manifest', function (): void {
     expect(resolve(ReadStarterKitManifest::class)->handle($this->directory))->toBeNull();
 });
@@ -58,6 +71,17 @@ it('throws when the manifest is not an object', function (): void {
 
 it('throws when the manifest has no version', function (): void {
     File::put("{$this->directory}/.starter-kit.json", (string) json_encode(['package' => 'shire-studio/laravel-starter-kit']));
+
+    resolve(ReadStarterKitManifest::class)->handle($this->directory);
+})->throws(CouldNotReadStarterKitManifest::class);
+
+it('throws when the reference is not text', function (): void {
+    File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
+        'package' => 'shire-studio/laravel-starter-kit',
+        'version' => 'v1.4.0',
+        'reference' => 42,
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+    ]));
 
     resolve(ReadStarterKitManifest::class)->handle($this->directory);
 })->throws(CouldNotReadStarterKitManifest::class);

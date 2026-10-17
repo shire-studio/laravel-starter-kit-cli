@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Data\StarterKitDiff;
+use Illuminate\Container\Attributes\Config;
 use Illuminate\Support\Facades\Process;
 
 final readonly class DiffStarterKitReleases
 {
     private const array LOCK_FILES = ['composer.lock', 'pnpm-lock.yaml'];
+
+    public function __construct(
+        #[Config('starter-kit.manifest_filename')]
+        private string $manifestFilename,
+    ) {}
 
     public function handle(string $oldDirectory, string $newDirectory, string $repositoryDirectory): StarterKitDiff
     {
@@ -18,14 +24,17 @@ final readonly class DiffStarterKitReleases
         $oldTree = $this->writeTree($repositoryDirectory, $oldDirectory);
         $newTree = $this->writeTree($repositoryDirectory, $newDirectory);
 
-        $withoutLockFiles = ['--', ...array_map(fn (string $lockFile): string => ":(exclude){$lockFile}", self::LOCK_FILES)];
+        $excludedPaths = ['--', ...array_map(
+            fn (string $path): string => ":(exclude){$path}",
+            [...self::LOCK_FILES, $this->manifestFilename],
+        )];
 
         $patch = $this->git($repositoryDirectory, [
-            'diff', '--no-color', '--no-ext-diff', '--no-renames', '--src-prefix=a/', '--dst-prefix=b/', $oldTree, $newTree, ...$withoutLockFiles,
+            'diff', '--no-color', '--no-ext-diff', '--no-renames', '--src-prefix=a/', '--dst-prefix=b/', $oldTree, $newTree, ...$excludedPaths,
         ]);
 
         $changes = $this->changes($this->git($repositoryDirectory, [
-            'diff', '--name-status', '-z', '--no-renames', $oldTree, $newTree, ...$withoutLockFiles,
+            'diff', '--name-status', '-z', '--no-renames', $oldTree, $newTree, ...$excludedPaths,
         ]));
 
         return new StarterKitDiff(

@@ -24,7 +24,7 @@ final readonly class FetchStarterKitCommitLog
             'log',
             '--no-merges',
             '--format=## %s%n%n%b%n',
-            "{$from->reference}..{$to->reference}",
+            "{$from->version}..{$to->version}",
         ]);
 
         if ($log->failed()) {

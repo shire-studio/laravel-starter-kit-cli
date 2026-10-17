@@ -19,7 +19,7 @@ it('fetches the commit messages between two releases', function (): void {
     Process::assertRanInOrder([
         fn (PendingProcess $process): bool => $process->command === ['git', 'clone', '--quiet', '--bare', '--filter=tree:0', 'https://github.com/shire-studio/laravel-starter-kit.git', '/tmp/commits.git']
             && $process->environment === ['GIT_TERMINAL_PROMPT' => '0'],
-        ['git', '--git-dir=/tmp/commits.git', 'log', '--no-merges', '--format=## %s%n%n%b%n', 'a1b2c3..c31ae68197d092fbaac6ac68712b44f230e27850'],
+        ['git', '--git-dir=/tmp/commits.git', 'log', '--no-merges', '--format=## %s%n%n%b%n', 'v1.3.0..v1.4.0'],
     ]);
 });
 

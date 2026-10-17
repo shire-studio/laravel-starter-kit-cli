@@ -64,6 +64,18 @@ it('leaves lock files out of the changes', function (): void {
         ->and($diff->addedFiles)->toBeEmpty();
 });
 
+it('leaves the release manifest out of the changes', function (): void {
+    File::copyDirectory("{$this->directory}/old", "{$this->directory}/new");
+
+    createFiles("{$this->directory}/old", ['.starter-kit.json' => "{\"version\": \"v1.4.0\"}\n"]);
+    createFiles("{$this->directory}/new", ['.starter-kit.json' => "{\"version\": \"v1.5.0\"}\n"]);
+
+    $diff = resolve(DiffStarterKitReleases::class)->handle("{$this->directory}/old", "{$this->directory}/new", "{$this->directory}/diff.git");
+
+    expect($diff->hasChanges())->toBeFalse()
+        ->and($diff->patch)->toBeEmpty();
+});
+
 it('finds no changes between identical releases', function (): void {
     File::copyDirectory("{$this->directory}/old", "{$this->directory}/new");
 

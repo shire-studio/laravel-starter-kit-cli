@@ -90,7 +90,7 @@ If you removed a starter kit feature from your project, such as authentication, 
 
 #### Projects without `.starter-kit.json`
 
-For a project created before the CLI existed, the agent first works out which starter kit release the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal.
+Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the agent first works out which starter kit release the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal.
 
 ## Local Development
 
