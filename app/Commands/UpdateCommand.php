@@ -27,6 +27,7 @@ use App\Data\StarterKitRelease;
 use App\Data\StarterKitUpdate;
 use App\Data\UpdateDirectory;
 use App\Enums\Agent;
+use App\Exceptions\CouldNotCompleteStarterKitUpdate;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
@@ -47,7 +48,7 @@ use function Laravel\Prompts\warning;
 
 final class UpdateCommand extends Command
 {
-    private const string NoAgentChoice = 'none';
+    private const string NO_AGENT_CHOICE = 'none';
 
     protected $name = 'update';
 
@@ -145,7 +146,7 @@ final class UpdateCommand extends Command
             }
 
             $latestRelease = spin(
-                $resolveLatestStarterKitRelease->handle(...),
+                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($versions),
                 'Resolving the latest starter kit release...',
             );
 
@@ -241,10 +242,10 @@ final class UpdateCommand extends Command
             if (! $agent instanceof Agent) {
                 note(implode(PHP_EOL, [
                     "Prepared in [{$updateDirectory->name}]:",
-                    '  PROMPT.md       how to apply the update',
-                    '  changes.diff    the upstream changes',
-                    '  old/ and new/   both versions of every changed file',
-                    ...($update->removedFiles === [] ? [] : ['  REMOVED.md      starter kit files this project removed']),
+                    $this->preparedFileLine(basename($updateDirectory->prompt()), 'how to apply the update'),
+                    $this->preparedFileLine(basename($updateDirectory->changes()), 'the upstream changes'),
+                    $this->preparedFileLine(basename($updateDirectory->oldFiles()).'/ and '.basename($updateDirectory->newFiles()).'/', 'both versions of every changed file'),
+                    ...($update->removedFiles === [] ? [] : [$this->preparedFileLine(basename($updateDirectory->removedFiles()), 'starter kit files this project removed')]),
                     '',
                     'Next steps:',
                     "  Follow {$updateDirectory->relative($updateDirectory->prompt())} yourself, or hand it to any coding agent.",
@@ -290,7 +291,7 @@ final class UpdateCommand extends Command
             error("The command [{$result->command()}] failed with exit code {$result->exitCode()}.");
 
             return self::FAILURE;
-        } catch (CouldNotResolveStarterKitRelease|CouldNotReadStarterKitManifest $exception) {
+        } catch (CouldNotResolveStarterKitRelease|CouldNotReadStarterKitManifest|CouldNotCompleteStarterKitUpdate $exception) {
             error($exception->getMessage());
 
             return self::FAILURE;
@@ -342,7 +343,7 @@ final class UpdateCommand extends Command
             label: 'Which agent should apply the update?',
             options: [
                 ...collect($installedAgents)->mapWithKeys(fn (Agent $agent): array => [$agent->value => $agent->label()])->all(),
-                self::NoAgentChoice => 'None, just give me the files',
+                self::NO_AGENT_CHOICE => 'None, just give me the files',
             ],
         );
 
@@ -356,8 +357,13 @@ final class UpdateCommand extends Command
     {
         return [
             ...array_map(fn (Agent $agent): string => $agent->value, Agent::cases()),
-            self::NoAgentChoice,
+            self::NO_AGENT_CHOICE,
         ];
+    }
+
+    private function preparedFileLine(string $filename, string $description): string
+    {
+        return '  '.mb_str_pad($filename, 16).$description;
     }
 
     /**

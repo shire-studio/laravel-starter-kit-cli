@@ -9,8 +9,10 @@ use App\Actions\DeleteDirectory;
 use App\Actions\FindMissingTools;
 use App\Actions\InitialiseGitRepository;
 use App\Actions\InstallFrontend;
+use App\Actions\ListStableStarterKitVersions;
 use App\Actions\RecordStarterKitRelease;
 use App\Actions\ResolveLatestStarterKitRelease;
+use App\Data\StarterKitRelease;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Support\Facades\File;
@@ -57,6 +59,7 @@ final class NewCommand extends Command
 
     public function handle(
         FindMissingTools $findMissingTools,
+        ListStableStarterKitVersions $listStableStarterKitVersions,
         ResolveLatestStarterKitRelease $resolveLatestStarterKitRelease,
         DeleteDirectory $deleteDirectory,
         CreateProject $createProject,
@@ -90,7 +93,7 @@ final class NewCommand extends Command
 
         try {
             $release = spin(
-                $resolveLatestStarterKitRelease->handle(...),
+                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($listStableStarterKitVersions->handle()),
                 'Resolving the latest starter kit release...',
             );
 

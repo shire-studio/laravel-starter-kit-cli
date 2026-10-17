@@ -11,15 +11,17 @@ use Illuminate\Container\Attributes\Config;
 final readonly class ResolveLatestStarterKitRelease
 {
     public function __construct(
-        private ListStableStarterKitVersions $listStableStarterKitVersions,
         private ResolveStarterKitRelease $resolveStarterKitRelease,
         #[Config('starter-kit.package')]
         private string $package,
     ) {}
 
-    public function handle(): StarterKitRelease
+    /**
+     * @param  list<string>  $versions
+     */
+    public function handle(array $versions): StarterKitRelease
     {
-        $latestVersion = $this->listStableStarterKitVersions->handle()[0] ?? null;
+        $latestVersion = $versions[0] ?? null;
 
         if ($latestVersion === null) {
             throw CouldNotResolveStarterKitRelease::noStableVersion($this->package);

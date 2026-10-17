@@ -254,6 +254,7 @@ it('does nothing when the project is already up to date', function (): void {
         ->expectsOutputToContain('The project is already up to date with starter kit v1.4.0.')
         ->assertSuccessful();
 
+    Process::assertRanTimes(fn (PendingProcess $process): bool => $process->command === ['composer', 'show', 'shire-studio/laravel-starter-kit', '--all', '--format=json'], 1);
     Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('create-project', $process->command, true));
 });
 

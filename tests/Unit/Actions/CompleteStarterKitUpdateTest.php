@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CompleteStarterKitUpdate;
 use App\Actions\RecordStarterKitRelease;
 use App\Data\UpdateDirectory;
+use App\Exceptions\CouldNotCompleteStarterKitUpdate;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
@@ -28,4 +29,13 @@ it('marks the project as updated with the staged manifest and removes the update
         'removed' => ['Teams', 'Authentication'],
     ])
         ->and("{$this->directory}/.starter-kit-update")->not->toBeDirectory();
+});
+
+it('throws and leaves the project manifest alone when the staged manifest is missing', function (): void {
+    File::delete("{$this->directory}/.starter-kit-update/.starter-kit.json");
+
+    expect(fn () => resolve(CompleteStarterKitUpdate::class)->handle(UpdateDirectory::in($this->directory)))
+        ->toThrow(CouldNotCompleteStarterKitUpdate::class, 'The staged [.starter-kit-update/.starter-kit.json] could not be found, so the project was not marked as updated. Run update again.')
+        ->and(File::json("{$this->directory}/.starter-kit.json"))->toMatchArray(['version' => 'v1.3.0'])
+        ->and("{$this->directory}/.starter-kit-update")->toBeDirectory();
 });
