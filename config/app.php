@@ -3,9 +3,7 @@
 declare(strict_types=1);
 
 use App\Providers\AppServiceProvider;
-use Illuminate\Routing\RoutingServiceProvider;
 use Illuminate\View\ViewServiceProvider;
-use Laravel\Boost\BoostServiceProvider;
 
 return [
 
@@ -63,10 +61,6 @@ return [
     'providers' => [
         AppServiceProvider::class,
         ViewServiceProvider::class,
-        ...class_exists(BoostServiceProvider::class) ? [
-            RoutingServiceProvider::class,
-            BoostServiceProvider::class,
-        ] : [],
     ],
 
 ];
