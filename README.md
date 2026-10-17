@@ -147,7 +147,17 @@ vendor/bin/vet
 php shire-kit app:build
 ```
 
-The PHAR ends up in `builds/shire-kit`. You'll be asked for a version unless you pass `--build-version`. What goes into it is set in `box.json`.
+The PHAR ends up in `builds/shire-kit`. You'll be asked for a version unless you pass `--build-version`. What goes into it is set in `box.json`. Packages in `require-dev` are left out, so build from a `composer install --no-dev` checkout to match a release.
+
+## Releasing
+
+Releases are published by the **release** workflow, not from the Releases page. In the Actions tab, run it on `main` with the new version, for example `v1.5.0`.
+
+The workflow builds the PHAR, then commits it on top of `main` together with a trimmed `composer.json` that requires only PHP and points `bin` at `builds/shire-kit`. It tags that commit and publishes a GitHub release with generated notes and the PHAR attached. The release commit is only reachable from its tag, so `main` keeps its full `composer.json` and never has a `builds` directory.
+
+Installing a release therefore pulls in no other packages. That matters for `composer global require`, where every global tool shares one set of dependencies. Without the PHAR, an older global tool that pins an older Laravel version (such as Valet 3) would block the install.
+
+The workflow refuses versions that already exist or aren't newer than the latest release.
 
 ## Contributing
 

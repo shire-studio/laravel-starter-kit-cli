@@ -1,0 +1,98 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to release, for example v1.5.0
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Validate Version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The version must look like v1.2.3, but got $VERSION."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check Version Is New
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git rev-parse --quiet --verify "refs/tags/$VERSION" > /dev/null; then
+            echo "::error::The tag $VERSION already exists."
+            exit 1
+          fi
+
+          LATEST_VERSION=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n 1)
+
+          if [ -n "$LATEST_VERSION" ] && [ "$(printf '%s\n%s\n' "$LATEST_VERSION" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]; then
+            echo "::error::$VERSION must be newer than the latest release, $LATEST_VERSION."
+            exit 1
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: 8.5
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Build PHAR
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          php shire-kit app:build --build-version="$VERSION" --no-interaction
+          php builds/shire-kit --version
+
+      - name: Ship PHAR Only
+        run: |
+          jq --indent 4 '.require = {php: .require.php} | .bin = ["builds/shire-kit"]' composer.json > composer.json.tmp
+          mv composer.json.tmp composer.json
+
+          jq '{require, bin}' composer.json
+
+      - name: Tag Release Commit
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add composer.json
+          git add --force builds/shire-kit
+          git commit --message="chore: release $VERSION"
+          git tag "$VERSION"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release create "$VERSION" builds/shire-kit --verify-tag --generate-notes --title "$VERSION"
