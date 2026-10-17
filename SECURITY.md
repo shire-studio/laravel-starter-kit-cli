@@ -8,6 +8,6 @@ If you discover a security vulnerability, please report it privately using one o
 
 1. **GitHub Private Vulnerability Reporting** (preferred). Go to the repository's **Security** tab and click **"Report a vulnerability"**. This creates a private advisory visible only to maintainers and provides a structured workflow for triage, fix coordination, and CVE assignment.
 
-2. **Email** — send the details to Josh Donnell at **josh@joshdonnell.co.uk**.
+2. **Email**. Send the details to Josh Donnell at **josh@joshdonnell.co.uk**.
 
 All security vulnerabilities will be promptly addressed.
