@@ -14,8 +14,6 @@
 
 The installer for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). Use `new` to start a project from the starter kit, and `update` to bring newer starter kit changes into a project you've already built with it. Think of it as the `laravel` installer, but for our starter kit.
 
-> Not released yet. Both commands work, but there is no tagged release to install.
-
 ## Requirements
 
 - [PHP 8.5+](https://php.net/releases/)
@@ -26,18 +24,26 @@ The installer for the [Shire Studio Laravel starter kit](https://github.com/shir
 
 ## Installation
 
-Coming with the first release. Until then, run the CLI from a clone. An alias keeps the commands short:
+Install the CLI globally with Composer:
 
 ```bash
-alias starter-kit="php /path/to/laravel-starter-kit-cli/application"
+composer global require shire-studio/laravel-starter-kit-cli
 ```
+
+This installs the `shire-kit` command. Make sure Composer's global bin directory is on your `PATH` (run `composer global config bin-dir --absolute` to find it), then check it works:
+
+```bash
+shire-kit --version
+```
+
+To upgrade to the latest release later, run `composer global update shire-studio/laravel-starter-kit-cli`.
 
 ## Usage
 
 ### Create a new project
 
 ```bash
-starter-kit new example-app
+shire-kit new example-app
 ```
 
 This creates `example-app` from the latest stable starter kit release. You'll be asked whether to install the frontend dependencies and build the assets, and whether to initialise a git repository. Skip the questions with these options:
@@ -56,7 +62,7 @@ Run `update` from the root of a project created from the starter kit:
 
 ```bash
 cd example-app
-starter-kit update
+shire-kit update
 ```
 
 The project has to be in a git repository and have no uncommitted changes, so everything the update does can be reviewed with `git diff` and undone with `git restore`. It can sit inside a larger repository, such as a monorepo. Only changes inside the project directory count.
@@ -138,10 +144,10 @@ vendor/bin/vet
 ### Building the PHAR
 
 ```bash
-php application app:build
+php shire-kit app:build
 ```
 
-The PHAR ends up in `builds/application`. You'll be asked for a version unless you pass `--build-version`. What goes into it is set in `box.json`.
+The PHAR ends up in `builds/shire-kit`. You'll be asked for a version unless you pass `--build-version`. What goes into it is set in `box.json`.
 
 ## Contributing
 
