@@ -15,7 +15,7 @@ it('lists the uncommitted changes', function (): void {
 
     expect($uncommittedChanges)->toBe([' M routes/web.php', '?? app/Actions/NewAction.php']);
 
-    Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['git', 'status', '--short', '--untracked-files=all'] && $process->path === '/projects/example-app');
+    Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['git', 'status', '--short', '--untracked-files=all', '--', '.'] && $process->path === '/projects/example-app');
 });
 
 it('returns nothing when the working tree is clean', function (): void {

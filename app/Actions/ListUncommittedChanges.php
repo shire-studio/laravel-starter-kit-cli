@@ -14,7 +14,7 @@ final readonly class ListUncommittedChanges
     public function handle(string $directory): array
     {
         $output = Process::path($directory)
-            ->run(['git', 'status', '--short', '--untracked-files=all'])
+            ->run(['git', 'status', '--short', '--untracked-files=all', '--', '.'])
             ->throw()
             ->output();
 

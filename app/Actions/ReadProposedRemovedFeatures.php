@@ -5,28 +5,21 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Data\StarterKitManifest;
-use Illuminate\Container\Attributes\Config;
+use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 
 final readonly class ReadProposedRemovedFeatures
 {
-    public function __construct(
-        #[Config('starter-kit.update_directory')]
-        private string $updateDirectoryName,
-    ) {}
-
     /**
      * @return list<string>
      */
-    public function handle(StarterKitManifest $manifest, string $projectDirectory): array
+    public function handle(StarterKitManifest $manifest, UpdateDirectory $updateDirectory): array
     {
-        $path = "{$projectDirectory}/{$this->updateDirectoryName}/removed.json";
-
-        if (File::missing($path)) {
+        if (File::missing($updateDirectory->removedFeatures())) {
             return [];
         }
 
-        $proposedRemovedFeatures = json_decode(File::get($path), true);
+        $proposedRemovedFeatures = json_decode(File::get($updateDirectory->removedFeatures()), true);
 
         if (! is_array($proposedRemovedFeatures)) {
             return [];

@@ -84,9 +84,8 @@ it('updates the project with the chosen agent', function (): void {
             'cursor' => 'Cursor',
             'none' => 'None, just give me the files',
         ])
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'yes')
         ->expectsOutputToContain(' M routes/web.php')
-        ->expectsOutputToContain('Removed features to record:')
+        ->expectsChoice('Which removed features should be recorded so future updates leave them out?', ['Authentication'], ['Authentication'])
         ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'yes')
         ->expectsOutputToContain('git add --all && git commit --message="chore: update starter kit from v1.3.0 to v1.4.0"')
         ->expectsOutputToContain('The project is updated to starter kit v1.4.0.')
@@ -100,7 +99,7 @@ it('updates the project with the chosen agent', function (): void {
         ->and($this->updateDirectory)->not->toBeDirectory()
         ->and(File::get("{$this->projectDirectory}/.git/info/exclude"))->toBe("/.starter-kit-update/\n");
 
-    Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['claude', 'Read .starter-kit-update/PROMPT.md and follow the instructions in it.']
+    Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['claude', 'Read .starter-kit-update/PROMPT.md and follow the instructions in it. The starter kit CLI started this session and carries on once you exit.']
         && $process->path === $this->projectDirectory);
 });
 
@@ -129,11 +128,42 @@ it('keeps the recorded removed features when more are proposed', function (): vo
     ]);
 
     $this->artisan('update', ['--agent' => 'claude'])
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'yes')
+        ->expectsChoice('Which removed features should be recorded so future updates leave them out?', ['Authentication'], ['Authentication'])
         ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'yes')
         ->assertSuccessful();
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json")['removed'])->toBe(['Teams', 'Authentication']);
+});
+
+it('only records the removed features that are accepted', function (): void {
+    fakeUpdateProcesses($this->projectDirectory, [
+        "'claude' 'Read*" => fakeAgentSession($this->projectDirectory, '["Authentication", "Billing"]'),
+    ]);
+
+    $this->artisan('update', ['--agent' => 'claude'])
+        ->expectsChoice('Which removed features should be recorded so future updates leave them out?', ['Billing'], ['Authentication', 'Billing'])
+        ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'yes')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json")['removed'])->toBe(['Billing']);
+});
+
+it('stages the accepted removed features when the update is not marked as done', function (): void {
+    fakeUpdateProcesses($this->projectDirectory, [
+        "'claude' 'Read*" => fakeAgentSession($this->projectDirectory, '["Authentication"]'),
+    ]);
+
+    $this->artisan('update', ['--agent' => 'claude'])
+        ->expectsChoice('Which removed features should be recorded so future updates leave them out?', ['Authentication'], ['Authentication'])
+        ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'no')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->updateDirectory}/.starter-kit.json"))->toMatchArray([
+        'version' => 'v1.4.0',
+        'removed' => ['Authentication'],
+    ])
+        ->and("{$this->updateDirectory}/removed.json")->not->toBeFile()
+        ->and(File::json("{$this->projectDirectory}/.starter-kit.json"))->not->toHaveKey('removed');
 });
 
 it('prepares the files without an agent when running without interaction', function (): void {
@@ -144,7 +174,7 @@ it('prepares the files without an agent when running without interaction', funct
         ->expectsOutputToContain('The update is ready to apply.')
         ->assertSuccessful();
 
-    expect(File::get("{$this->updateDirectory}/PROMPT.md"))->toContain('Copy `.starter-kit-update/.starter-kit.json` to `.starter-kit.json`')
+    expect(File::get("{$this->updateDirectory}/PROMPT.md"))->toContain('Copy `.starter-kit-update/.starter-kit.json` to `.starter-kit.json` in the project root.')
         ->and(File::json("{$this->projectDirectory}/.starter-kit.json")['version'])->toBe('v1.3.0');
 
     Process::assertDidntRun(fn (PendingProcess $process): bool => $process->command[0] === 'claude' && $process->command[1] !== '--version');
@@ -156,27 +186,13 @@ it('keeps the current version when the update is not marked as done', function (
     ]);
 
     $this->artisan('update', ['--agent' => 'claude'])
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'yes')
         ->expectsOutputToContain('No files were changed.')
         ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'no')
-        ->expectsOutputToContain('The project is still marked as starter kit v1.3.0. The prepared changes are kept in [.starter-kit-update].')
+        ->expectsOutputToContain('The project is still marked as starter kit v1.3.0. To finish by hand, copy [.starter-kit-update/.starter-kit.json] to [.starter-kit.json] and delete [.starter-kit-update].')
         ->assertSuccessful();
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json")['version'])->toBe('v1.3.0')
         ->and("{$this->updateDirectory}/PROMPT.md")->toBeFile();
-});
-
-it('keeps the prepared changes when the handover is cancelled', function (): void {
-    fakeUpdateProcesses($this->projectDirectory);
-
-    $this->artisan('update', ['--agent' => 'claude'])
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'no')
-        ->expectsOutputToContain('Update cancelled. The prepared changes are kept in [.starter-kit-update].')
-        ->assertSuccessful();
-
-    expect("{$this->updateDirectory}/PROMPT.md")->toBeFile();
-
-    Process::assertDidntRun(['claude', 'Read .starter-kit-update/PROMPT.md and follow the instructions in it.']);
 });
 
 it('warns when the agent exits with an error', function (): void {
@@ -185,7 +201,6 @@ it('warns when the agent exits with an error', function (): void {
     ]);
 
     $this->artisan('update', ['--agent' => 'claude'])
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'yes')
         ->expectsOutputToContain('Claude Code exited with code 1.')
         ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'no')
         ->assertSuccessful();
@@ -203,6 +218,31 @@ it('marks the project as updated when the release has no changes for it', functi
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json")['version'])->toBe('v1.4.0')
         ->and($this->updateDirectory)->not->toBeDirectory();
+});
+
+it('marks the project as updated without interaction when the release has no changes for it', function (): void {
+    fakeUpdateProcesses($this->projectDirectory, [
+        "*'--name-status'*" => Process::result(),
+        "*'diff'*" => Process::result(),
+    ]);
+
+    $this->artisan('update', ['--no-interaction' => true])
+        ->expectsOutputToContain('Starter kit v1.4.0 has no changes for this project, so it has been marked as updated.')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json")['version'])->toBe('v1.4.0');
+});
+
+it('fails when the recorded version is not a stable release', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.5.0-beta.1'), $this->projectDirectory);
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update')
+        ->expectsOutputToContain('Starter kit v1.5.0-beta.1 recorded in [.starter-kit.json] is not a stable release. Set it to the stable release this project was created from, then run update again.')
+        ->assertFailed();
+
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('create-project', $process->command, true));
 });
 
 it('does nothing when the project is already up to date', function (): void {
@@ -232,7 +272,7 @@ it('detects the starter kit version when the project has no manifest', function 
         ->expectsOutputToContain('No [.starter-kit.json] was found. Claude Code will work out which starter kit version this project was created from.')
         ->expectsConfirmation('Claude Code detected starter kit v1.3.0. Use it as the base for the update?', 'yes')
         ->expectsOutputToContain('Recorded starter kit v1.3.0 in [.starter-kit.json].')
-        ->expectsConfirmation('Hand the update over to Claude Code?', 'no')
+        ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'no')
         ->assertSuccessful();
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray([
@@ -249,6 +289,8 @@ it('fails when the agent does not detect a starter kit version', function (): vo
     $this->artisan('update', ['--agent' => 'claude'])
         ->expectsOutputToContain('Claude Code did not record a starter kit version that exists. Add [.starter-kit.json] by hand or run update again.')
         ->assertFailed();
+
+    expect($this->updateDirectory)->not->toBeDirectory();
 });
 
 it('warns when the agent crashes while detecting the version', function (): void {
@@ -296,7 +338,8 @@ it('fails when the detected version is rejected', function (): void {
         ->expectsOutputToContain('Update cancelled. Add [.starter-kit.json] by hand or run update again.')
         ->assertFailed();
 
-    expect("{$this->projectDirectory}/.starter-kit.json")->not->toBeFile();
+    expect("{$this->projectDirectory}/.starter-kit.json")->not->toBeFile()
+        ->and($this->updateDirectory)->not->toBeDirectory();
 });
 
 it('fails without a manifest when no agent is chosen', function (): void {
@@ -305,7 +348,7 @@ it('fails without a manifest when no agent is chosen', function (): void {
     fakeUpdateProcesses($this->projectDirectory);
 
     $this->artisan('update', ['--no-interaction' => true])
-        ->expectsOutputToContain('No [.starter-kit.json] was found, so the starter kit version this project was created from is unknown. Run update again and choose an agent to detect it.')
+        ->expectsOutputToContain('No [.starter-kit.json] was found, so the starter kit version this project was created from is unknown. Run update again and choose an agent to detect it, or add [.starter-kit.json] by hand.')
         ->assertFailed();
 });
 

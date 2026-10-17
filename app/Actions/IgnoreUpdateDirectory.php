@@ -4,26 +4,19 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use Illuminate\Container\Attributes\Config;
+use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 final readonly class IgnoreUpdateDirectory
 {
-    public function __construct(
-        #[Config('starter-kit.update_directory')]
-        private string $updateDirectory,
-    ) {}
-
-    public function handle(string $directory): void
+    public function handle(UpdateDirectory $updateDirectory): void
     {
-        $excludePath = mb_trim(Process::path($directory)
-            ->run(['git', 'rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'])
-            ->throw()
-            ->output());
+        $excludePath = $this->git($updateDirectory, ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude']);
+        $projectPrefix = $this->git($updateDirectory, ['rev-parse', '--show-prefix']);
 
-        $pattern = "/{$this->updateDirectory}/";
+        $pattern = "/{$projectPrefix}{$updateDirectory->name}/";
 
         $excludedPatterns = File::exists($excludePath) ? File::get($excludePath) : '';
 
@@ -38,5 +31,16 @@ final readonly class IgnoreUpdateDirectory
         File::ensureDirectoryExists(dirname($excludePath));
 
         File::append($excludePath, "{$separator}{$pattern}\n");
+    }
+
+    /**
+     * @param  list<string>  $arguments
+     */
+    private function git(UpdateDirectory $updateDirectory, array $arguments): string
+    {
+        return mb_trim(Process::path($updateDirectory->projectDirectory)
+            ->run(['git', ...$arguments])
+            ->throw()
+            ->output());
     }
 }

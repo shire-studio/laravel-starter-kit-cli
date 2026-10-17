@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Actions\CompleteStarterKitUpdate;
+use App\Actions\DeleteDirectory;
 use App\Actions\FindInstalledAgents;
 use App\Actions\FindMissingTools;
 use App\Actions\IgnoreUpdateDirectory;
@@ -20,15 +21,16 @@ use App\Actions\ReadStarterKitManifest;
 use App\Actions\RecordStarterKitRelease;
 use App\Actions\ResolveLatestStarterKitRelease;
 use App\Actions\ResolveStarterKitRelease;
+use App\Actions\StageRemovedFeatures;
 use App\Data\StarterKitManifest;
 use App\Data\StarterKitRelease;
 use App\Data\StarterKitUpdate;
+use App\Data\UpdateDirectory;
 use App\Enums\Agent;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Console\Input\InputOption;
@@ -36,6 +38,7 @@ use Symfony\Component\Console\Input\InputOption;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
+use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\select;
@@ -44,6 +47,8 @@ use function Laravel\Prompts\warning;
 
 final class UpdateCommand extends Command
 {
+    private const string NoAgentChoice = 'none';
+
     protected $name = 'update';
 
     protected $description = 'Bring newer starter kit changes into this project with the help of a coding agent';
@@ -53,23 +58,25 @@ final class UpdateCommand extends Command
         IsGitRepository $isGitRepository,
         ListUncommittedChanges $listUncommittedChanges,
         ReadStarterKitManifest $readStarterKitManifest,
+        ListStableStarterKitVersions $listStableStarterKitVersions,
         ResolveLatestStarterKitRelease $resolveLatestStarterKitRelease,
         FindInstalledAgents $findInstalledAgents,
         IgnoreUpdateDirectory $ignoreUpdateDirectory,
-        ListStableStarterKitVersions $listStableStarterKitVersions,
         PrepareStarterKitDetection $prepareStarterKitDetection,
         LaunchAgent $launchAgent,
         ReadDetectedStarterKitVersion $readDetectedStarterKitVersion,
+        DeleteDirectory $deleteDirectory,
         ResolveStarterKitRelease $resolveStarterKitRelease,
         RecordStarterKitRelease $recordStarterKitRelease,
         PrepareStarterKitUpdate $prepareStarterKitUpdate,
         ReadProposedRemovedFeatures $readProposedRemovedFeatures,
+        StageRemovedFeatures $stageRemovedFeatures,
         CompleteStarterKitUpdate $completeStarterKitUpdate,
     ): int {
         $directory = (string) getcwd();
+        $updateDirectory = UpdateDirectory::in($directory);
+        $manifestFilename = $updateDirectory->manifestFilename;
         $agentOption = $this->option('agent');
-        $manifestFilename = Config::string('starter-kit.manifest_filename');
-        $updateDirectoryName = Config::string('starter-kit.update_directory');
 
         if (is_string($agentOption)) {
             if (! in_array($agentOption, $this->agentChoices(), true)) {
@@ -79,13 +86,15 @@ final class UpdateCommand extends Command
 
                 return self::FAILURE;
             }
+        }
 
-            if ($agentOption !== 'none') {
-                if (! $this->input->isInteractive()) {
-                    error('An agent session needs an interactive terminal. Run update without --no-interaction, or use --agent=none.');
+        $requestedAgent = is_string($agentOption) ? Agent::tryFrom($agentOption) : null;
 
-                    return self::FAILURE;
-                }
+        if ($requestedAgent instanceof Agent) {
+            if (! $this->input->isInteractive()) {
+                error('An agent session needs an interactive terminal. Run update without --no-interaction, or use --agent=none.');
+
+                return self::FAILURE;
             }
         }
 
@@ -122,6 +131,19 @@ final class UpdateCommand extends Command
         try {
             $manifest = $readStarterKitManifest->handle($directory);
 
+            $versions = spin(
+                $listStableStarterKitVersions->handle(...),
+                'Listing the stable starter kit releases...',
+            );
+
+            if ($manifest instanceof StarterKitManifest) {
+                if (! in_array($manifest->release->version, $versions, true)) {
+                    error("Starter kit {$manifest->release->version} recorded in [{$manifestFilename}] is not a stable release. Set it to the stable release this project was created from, then run update again.");
+
+                    return self::FAILURE;
+                }
+            }
+
             $latestRelease = spin(
                 $resolveLatestStarterKitRelease->handle(...),
                 'Resolving the latest starter kit release...',
@@ -135,7 +157,9 @@ final class UpdateCommand extends Command
 
             $installedAgents = $findInstalledAgents->handle();
 
-            $agent = $this->chooseAgent($installedAgents);
+            $agent = is_string($agentOption)
+                ? $requestedAgent
+                : $this->chooseAgent($installedAgents);
 
             if ($agent instanceof Agent) {
                 if (! in_array($agent, $installedAgents, true)) {
@@ -145,32 +169,34 @@ final class UpdateCommand extends Command
                 }
             }
 
-            $ignoreUpdateDirectory->handle($directory);
+            $ignoreUpdateDirectory->handle($updateDirectory);
 
             if (! $manifest instanceof StarterKitManifest) {
                 if (! $agent instanceof Agent) {
-                    error("No [{$manifestFilename}] was found, so the starter kit version this project was created from is unknown. Run update again and choose an agent to detect it.");
+                    error("No [{$manifestFilename}] was found, so the starter kit version this project was created from is unknown. Run update again and choose an agent to detect it, or add [{$manifestFilename}] by hand.");
 
                     return self::FAILURE;
                 }
 
                 warning("No [{$manifestFilename}] was found. {$agent->label()} will work out which starter kit version this project was created from.");
 
-                $versions = $listStableStarterKitVersions->handle();
+                $prepareStarterKitDetection->handle($updateDirectory, $latestRelease, $versions);
 
-                $prepareStarterKitDetection->handle($directory, $latestRelease, $versions);
+                $this->handOver($launchAgent, $agent, $updateDirectory, $updateDirectory->detectionPrompt());
 
-                $this->handOver($launchAgent, $agent, $directory, 'DETECT.md');
-
-                $detectedVersion = $readDetectedStarterKitVersion->handle($directory);
+                $detectedVersion = $readDetectedStarterKitVersion->handle($updateDirectory);
 
                 if ($detectedVersion === null || ! in_array($detectedVersion, $versions, true)) {
+                    $deleteDirectory->handle($updateDirectory->path());
+
                     error("{$agent->label()} did not record a starter kit version that exists. Add [{$manifestFilename}] by hand or run update again.");
 
                     return self::FAILURE;
                 }
 
                 if (! confirm("{$agent->label()} detected starter kit {$detectedVersion}. Use it as the base for the update?")) {
+                    $deleteDirectory->handle($updateDirectory->path());
+
                     error("Update cancelled. Add [{$manifestFilename}] by hand or run update again.");
 
                     return self::FAILURE;
@@ -192,19 +218,19 @@ final class UpdateCommand extends Command
             $toVersion = $latestRelease->version;
 
             $update = spin(
-                fn (): StarterKitUpdate => $prepareStarterKitUpdate->handle($manifest, $latestRelease, $directory, $agent),
+                fn (): StarterKitUpdate => $prepareStarterKitUpdate->handle($manifest, $latestRelease, $updateDirectory),
                 "Preparing the changes from starter kit {$fromVersion} to {$toVersion}...",
             );
 
             if (! $update->diff->hasChanges()) {
-                $completeStarterKitUpdate->handle($manifest, $latestRelease, $directory);
+                $completeStarterKitUpdate->handle($updateDirectory);
 
                 outro("Starter kit {$toVersion} has no changes for this project, so it has been marked as updated.");
 
                 return self::SUCCESS;
             }
 
-            info("Prepared {$update->diff->changedFileCount()} changed files from starter kit {$fromVersion} to {$toVersion} in [{$updateDirectoryName}].");
+            info("Prepared {$update->diff->changedFileCount()} changed files from starter kit {$fromVersion} to {$toVersion} in [{$updateDirectory->name}].");
 
             if ($update->removedFiles !== []) {
                 $removedFileCount = count($update->removedFiles);
@@ -214,14 +240,14 @@ final class UpdateCommand extends Command
 
             if (! $agent instanceof Agent) {
                 note(implode(PHP_EOL, [
-                    "Prepared in [{$updateDirectoryName}]:",
+                    "Prepared in [{$updateDirectory->name}]:",
                     '  PROMPT.md       how to apply the update',
                     '  changes.diff    the upstream changes',
                     '  old/ and new/   both versions of every changed file',
                     ...($update->removedFiles === [] ? [] : ['  REMOVED.md      starter kit files this project removed']),
                     '',
                     'Next steps:',
-                    "  Follow {$updateDirectoryName}/PROMPT.md yourself, or hand it to any coding agent.",
+                    "  Follow {$updateDirectory->relative($updateDirectory->prompt())} yourself, or hand it to any coding agent.",
                 ]));
 
                 outro('The update is ready to apply.');
@@ -229,32 +255,32 @@ final class UpdateCommand extends Command
                 return self::SUCCESS;
             }
 
-            if (! confirm("Hand the update over to {$agent->label()}?")) {
-                warning("Update cancelled. The prepared changes are kept in [{$updateDirectoryName}].");
-
-                return self::SUCCESS;
-            }
-
-            $this->handOver($launchAgent, $agent, $directory, 'PROMPT.md');
+            $this->handOver($launchAgent, $agent, $updateDirectory, $updateDirectory->prompt());
 
             note(implode(PHP_EOL, $this->changedFileLines($listUncommittedChanges->handle($directory))));
 
-            $newRemovedFeatures = $readProposedRemovedFeatures->handle($manifest, $directory);
+            $proposedRemovedFeatures = $readProposedRemovedFeatures->handle($manifest, $updateDirectory);
 
-            if ($newRemovedFeatures !== []) {
-                note(implode(PHP_EOL, [
-                    'Removed features to record:',
-                    ...array_map(fn (string $removedFeature): string => "  {$removedFeature}", $newRemovedFeatures),
-                ]));
+            if ($proposedRemovedFeatures !== []) {
+                /** @var list<string> $acceptedRemovedFeatures */
+                $acceptedRemovedFeatures = multiselect(
+                    label: 'Which removed features should be recorded so future updates leave them out?',
+                    options: $proposedRemovedFeatures,
+                    default: $proposedRemovedFeatures,
+                );
+
+                $stageRemovedFeatures->handle($updateDirectory, $latestRelease, [...$manifest->removedFeatures, ...$acceptedRemovedFeatures]);
             }
 
             if (! confirm("Mark the project as updated to starter kit {$toVersion}?")) {
-                warning("The project is still marked as starter kit {$fromVersion}. The prepared changes are kept in [{$updateDirectoryName}].");
+                $stagedManifest = $updateDirectory->relative($updateDirectory->manifest());
+
+                warning("The project is still marked as starter kit {$fromVersion}. To finish by hand, copy [{$stagedManifest}] to [{$manifestFilename}] and delete [{$updateDirectory->name}].");
 
                 return self::SUCCESS;
             }
 
-            $completeStarterKitUpdate->handle($manifest, $latestRelease, $directory, $newRemovedFeatures);
+            $completeStarterKitUpdate->handle($updateDirectory);
         } catch (ProcessFailedException $exception) {
             $result = $exception->result;
 
@@ -294,11 +320,9 @@ final class UpdateCommand extends Command
         ];
     }
 
-    private function handOver(LaunchAgent $launchAgent, Agent $agent, string $directory, string $instructionsFilename): void
+    private function handOver(LaunchAgent $launchAgent, Agent $agent, UpdateDirectory $updateDirectory, string $instructionsPath): void
     {
-        $updateDirectoryName = Config::string('starter-kit.update_directory');
-
-        $exitCode = $launchAgent->handle($agent, $directory, "Read {$updateDirectoryName}/{$instructionsFilename} and follow the instructions in it.");
+        $exitCode = $launchAgent->handle($agent, $updateDirectory->projectDirectory, $updateDirectory->relative($instructionsPath));
 
         if ($exitCode !== 0) {
             warning("{$agent->label()} exited with code {$exitCode}.");
@@ -310,12 +334,6 @@ final class UpdateCommand extends Command
      */
     private function chooseAgent(array $installedAgents): ?Agent
     {
-        $agentOption = $this->option('agent');
-
-        if (is_string($agentOption)) {
-            return Agent::tryFrom($agentOption);
-        }
-
         if (! $this->input->isInteractive()) {
             return null;
         }
@@ -324,7 +342,7 @@ final class UpdateCommand extends Command
             label: 'Which agent should apply the update?',
             options: [
                 ...collect($installedAgents)->mapWithKeys(fn (Agent $agent): array => [$agent->value => $agent->label()])->all(),
-                'none' => 'None, just give me the files',
+                self::NoAgentChoice => 'None, just give me the files',
             ],
         );
 
@@ -338,7 +356,7 @@ final class UpdateCommand extends Command
     {
         return [
             ...array_map(fn (Agent $agent): string => $agent->value, Agent::cases()),
-            'none',
+            self::NoAgentChoice,
         ];
     }
 

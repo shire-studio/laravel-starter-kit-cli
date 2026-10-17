@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Process;
 
 final readonly class LaunchAgent
 {
-    public function handle(Agent $agent, string $directory, string $prompt): int
+    public function handle(Agent $agent, string $directory, string $instructionsPath): int
     {
-        $command = $agent->interactiveCommand($prompt);
+        $command = $agent->interactiveCommand("Read {$instructionsPath} and follow the instructions in it. The starter kit CLI started this session and carries on once you exit.");
         $terminalDevice = $this->terminalDevice();
 
         $process = Process::path($directory)->forever();

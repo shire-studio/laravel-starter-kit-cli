@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\PrepareStarterKitUpdate;
 use App\Data\StarterKitManifest;
-use App\Enums\Agent;
+use App\Data\UpdateDirectory;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
@@ -55,10 +55,10 @@ function fakeStarterKitDownloads(array $overrides = []): void
     ]);
 }
 
-it('prepares the update for an agent', function (): void {
+it('prepares the update', function (): void {
     fakeStarterKitDownloads();
 
-    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect($update->from->version)->toBe('v1.3.0')
         ->and($update->to->version)->toBe('v1.4.0')
@@ -78,12 +78,11 @@ it('prepares the update for an agent', function (): void {
         ->and(File::get("{$this->updateDirectory}/PROMPT.md"))
         ->toContain('# Update this project to starter kit v1.4.0')
         ->toContain('starter kit at **v1.3.0**')
-        ->toContain('`REMOVED.md`: files that shipped with v1.3.0')
-        ->toContain('Never restore a file listed in `REMOVED.md`.')
+        ->toContain('`.starter-kit-update/REMOVED.md`: files that shipped with v1.3.0')
+        ->toContain('Never restore a file listed in `.starter-kit-update/REMOVED.md`.')
         ->toContain('`.starter-kit-update/removed.json`')
-        ->not->toContain('`COMMITS.md`')
+        ->not->toContain('COMMITS.md')
         ->not->toContain('earlier updates')
-        ->not->toContain('Copy `.starter-kit-update/.starter-kit.json`')
         ->and($this->workingDirectory)->not->toBeDirectory();
 
     Process::assertRan(fn (PendingProcess $process): bool => in_array('create-project', $process->command, true)
@@ -91,15 +90,15 @@ it('prepares the update for an agent', function (): void {
         && $process->command[4] === 'v1.3.0');
 });
 
-it('prepares the update for applying by hand', function (): void {
+it('explains how to finish the update by hand', function (): void {
     fakeStarterKitDownloads();
 
-    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, null);
+    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect(File::get("{$this->updateDirectory}/PROMPT.md"))
-        ->toContain('Copy `.starter-kit-update/.starter-kit.json` to `.starter-kit.json` in the project root.')
-        ->toContain('Delete the `.starter-kit-update/` directory.')
-        ->not->toContain('removed.json');
+        ->toContain('If the starter kit CLI started this session, stop here and tell the user to exit it.')
+        ->toContain('Copy `.starter-kit-update/.starter-kit.json` to `.starter-kit.json` in the project root. If `.starter-kit-update/removed.json` exists, add each feature in it')
+        ->toContain('Delete the `.starter-kit-update/` directory.');
 });
 
 it('includes the upstream commit log when it can be fetched', function (): void {
@@ -108,16 +107,16 @@ it('includes the upstream commit log when it can be fetched', function (): void 
         "*'log'*" => Process::result("## feat: add two factor authentication\n"),
     ]);
 
-    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect(File::get("{$this->updateDirectory}/COMMITS.md"))->toBe("## feat: add two factor authentication\n")
-        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))->toContain('`COMMITS.md`: the upstream commit messages');
+        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))->toContain('`.starter-kit-update/COMMITS.md`: the upstream commit messages');
 });
 
 it('carries over the features the project removed in earlier updates', function (): void {
     fakeStarterKitDownloads();
 
-    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), ['Teams', 'Billing & invoices']), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), ['Teams', 'Billing & invoices']), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect(File::get("{$this->updateDirectory}/PROMPT.md"))->toContain("removed from this project on purpose in earlier updates:\n\n- Teams\n- Billing & invoices\n")
         ->and(File::json("{$this->updateDirectory}/.starter-kit.json"))->toMatchArray(['removed' => ['Teams', 'Billing & invoices']]);
@@ -131,11 +130,11 @@ it('leaves out the removed files list when the project has every starter kit fil
         'config/legacy.php' => "<?php // legacy\n",
     ]);
 
-    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect($update->removedFiles)->toBeEmpty()
         ->and("{$this->updateDirectory}/REMOVED.md")->not->toBeFile()
-        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))->not->toContain('`REMOVED.md`: files that shipped');
+        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))->not->toContain('REMOVED.md`: files that shipped');
 });
 
 it('groups removed files in the project root under their own heading', function (): void {
@@ -143,7 +142,7 @@ it('groups removed files in the project root under their own heading', function 
 
     File::delete("{$this->directory}/composer.json");
 
-    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect(File::get("{$this->updateDirectory}/REMOVED.md"))->toContain("## Project root\n\n- composer.json\n");
 });
@@ -153,7 +152,7 @@ it('replaces a stale update directory', function (): void {
 
     createFiles($this->updateDirectory, ['removed.json' => '["Teams"]']);
 
-    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode);
+    resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
 
     expect("{$this->updateDirectory}/removed.json")->not->toBeFile();
 });
@@ -167,7 +166,7 @@ it('cleans up the downloaded releases when a download fails', function (): void 
         },
     ]);
 
-    expect(fn () => resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), $this->directory, Agent::ClaudeCode))
+    expect(fn () => resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory)))
         ->toThrow(ProcessFailedException::class)
         ->and($this->workingDirectory)->not->toBeDirectory()
         ->and($this->updateDirectory)->not->toBeDirectory();

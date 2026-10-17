@@ -73,7 +73,9 @@ An update runs in these steps:
 
 1. The CLI downloads both starter kit releases and writes the changes between them to `.starter-kit-update/` in the project. It holds the diff, the old and new version of every changed file, the upstream commit messages and a prompt for the agent. The directory is excluded from git.
 2. You choose an agent, and it starts in an interactive session with the prompt. Follow along, answer its questions, and exit the session when it's done.
-3. The CLI shows the changed files and asks whether to mark the project as updated. If you say yes, it updates `.starter-kit.json` and removes `.starter-kit-update/`. If you say no, both are kept so you can carry on by hand.
+3. The CLI shows the changed files and asks which of the removed features the agent found should be recorded (see below). Then it asks whether to mark the project as updated. If you say yes, it updates `.starter-kit.json` and removes `.starter-kit-update/`. If you say no, both are kept so you can carry on by hand. The end of `.starter-kit-update/PROMPT.md` lists the steps to finish the update yourself.
+
+If the newer release has nothing to apply to the project (for example, only its lock files changed), the CLI marks the project as updated straight away, without an agent. This also happens with `--agent=none` and `--no-interaction`.
 
 Nothing is committed. Review the changes, then commit them yourself.
 
@@ -82,7 +84,7 @@ Nothing is committed. Review the changes, then commit them yourself.
 | `--agent=<agent>` | Skip the question and use `claude`, `codex`, `gemini`, `opencode`, `cursor` or `none` |
 | `--force`, `-f` | Run even if the project has uncommitted changes |
 
-With `--agent=none`, or with `--no-interaction` and no `--agent`, the CLI only prepares `.starter-kit-update/`. Follow `.starter-kit-update/PROMPT.md` yourself, or hand it to any coding agent you like. The prompt ends with the steps to mark the project as updated.
+With `--agent=none`, or with `--no-interaction` and no `--agent`, the CLI only prepares `.starter-kit-update/` (unless there is nothing to apply, as described above). Follow `.starter-kit-update/PROMPT.md` yourself, or hand it to any coding agent you like. The prompt ends with the steps to mark the project as updated.
 
 #### Removed features stay removed
 
@@ -90,7 +92,9 @@ If you removed a starter kit feature from your project, such as authentication, 
 
 #### Projects without `.starter-kit.json`
 
-Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the agent first works out which starter kit release the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal.
+Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the agent first works out which starter kit release the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal. This needs an agent, so with `--agent=none` or `--no-interaction` the update fails until you add `.starter-kit.json` by hand.
+
+`.starter-kit.json` has to name a stable starter kit release. If it records a pre-release or a branch, `update` stops instead of guessing what changed.
 
 ## Local Development
 

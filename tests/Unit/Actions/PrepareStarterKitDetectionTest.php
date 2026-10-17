@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\PrepareStarterKitDetection;
+use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
@@ -14,7 +15,7 @@ afterEach(function (): void {
 });
 
 it('writes the prompt for detecting the starter kit version', function (): void {
-    resolve(PrepareStarterKitDetection::class)->handle($this->directory, starterKitRelease(), ['v1.4.0', 'v1.3.0']);
+    resolve(PrepareStarterKitDetection::class)->handle(UpdateDirectory::in($this->directory), starterKitRelease(), ['v1.4.0', 'v1.3.0']);
 
     expect(File::get("{$this->directory}/.starter-kit-update/DETECT.md"))
         ->toContain('# Find the starter kit version this project was created from')
@@ -26,7 +27,7 @@ it('writes the prompt for detecting the starter kit version', function (): void 
 it('replaces a stale update directory', function (): void {
     createFiles($this->directory, ['.starter-kit-update/detected-version' => 'v1.0.0']);
 
-    resolve(PrepareStarterKitDetection::class)->handle($this->directory, starterKitRelease(), ['v1.4.0']);
+    resolve(PrepareStarterKitDetection::class)->handle(UpdateDirectory::in($this->directory), starterKitRelease(), ['v1.4.0']);
 
     expect("{$this->directory}/.starter-kit-update/detected-version")->not->toBeFile();
 });

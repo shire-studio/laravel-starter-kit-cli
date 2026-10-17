@@ -7,8 +7,7 @@ namespace App\Actions;
 use App\Data\StarterKitManifest;
 use App\Data\StarterKitRelease;
 use App\Data\StarterKitUpdate;
-use App\Enums\Agent;
-use Illuminate\Container\Attributes\Config;
+use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
@@ -22,19 +21,14 @@ final readonly class PrepareStarterKitUpdate
         private FetchStarterKitCommitLog $fetchStarterKitCommitLog,
         private DeleteDirectory $deleteDirectory,
         private RecordStarterKitRelease $recordStarterKitRelease,
-        #[Config('starter-kit.update_directory')]
-        private string $updateDirectoryName,
-        #[Config('starter-kit.manifest_filename')]
-        private string $manifestFilename,
     ) {}
 
-    public function handle(StarterKitManifest $manifest, StarterKitRelease $release, string $projectDirectory, ?Agent $agent): StarterKitUpdate
+    public function handle(StarterKitManifest $manifest, StarterKitRelease $release, UpdateDirectory $updateDirectory): StarterKitUpdate
     {
         $temporaryDirectory = sys_get_temp_dir();
         $randomName = Str::random(16);
 
         $workingDirectory = "{$temporaryDirectory}/laravel-starter-kit-cli/{$randomName}";
-        $updateDirectory = "{$projectDirectory}/{$this->updateDirectoryName}";
 
         try {
             $this->downloadStarterKitRelease->handle($manifest->release, "{$workingDirectory}/old");
@@ -46,22 +40,22 @@ final readonly class PrepareStarterKitUpdate
                 from: $manifest->release,
                 to: $release,
                 diff: $diff,
-                removedFiles: $this->findRemovedStarterKitFiles->handle("{$workingDirectory}/old", $projectDirectory),
+                removedFiles: $this->findRemovedStarterKitFiles->handle("{$workingDirectory}/old", $updateDirectory->projectDirectory),
             );
 
             $commitLog = $this->fetchStarterKitCommitLog->handle($manifest->release, $release, "{$workingDirectory}/commits.git");
 
-            $this->deleteDirectory->handle($updateDirectory);
+            $this->deleteDirectory->handle($updateDirectory->path());
 
-            File::ensureDirectoryExists($updateDirectory);
+            File::ensureDirectoryExists($updateDirectory->path());
 
-            File::put("{$updateDirectory}/changes.diff", $diff->patch);
+            File::put($updateDirectory->changes(), $diff->patch);
 
-            $this->copyFiles([...$diff->modifiedFiles, ...$diff->deletedFiles], "{$workingDirectory}/old", "{$updateDirectory}/old");
-            $this->copyFiles([...$diff->modifiedFiles, ...$diff->addedFiles], "{$workingDirectory}/new", "{$updateDirectory}/new");
+            $this->copyFiles([...$diff->modifiedFiles, ...$diff->deletedFiles], "{$workingDirectory}/old", $updateDirectory->oldFiles());
+            $this->copyFiles([...$diff->modifiedFiles, ...$diff->addedFiles], "{$workingDirectory}/new", $updateDirectory->newFiles());
 
             if ($update->removedFiles !== []) {
-                File::put("{$updateDirectory}/REMOVED.md", View::make('prompts.removed', [
+                File::put($updateDirectory->removedFiles(), View::make('prompts.removed', [
                     'version' => $manifest->release->version,
                     'removedFilesByDirectory' => collect($update->removedFiles)
                         ->groupBy(fn (string $path): string => dirname($path) === '.' ? 'Project root' : dirname($path))
@@ -70,18 +64,16 @@ final readonly class PrepareStarterKitUpdate
             }
 
             if ($commitLog !== null) {
-                File::put("{$updateDirectory}/COMMITS.md", "{$commitLog}\n");
+                File::put($updateDirectory->commitLog(), "{$commitLog}\n");
             }
 
-            $this->recordStarterKitRelease->handle($release, $updateDirectory, $manifest->removedFeatures);
+            $this->recordStarterKitRelease->handle($release, $updateDirectory->path(), $manifest->removedFeatures);
 
-            File::put("{$updateDirectory}/PROMPT.md", View::make('prompts.update', [
+            File::put($updateDirectory->prompt(), View::make('prompts.update', [
                 'update' => $update,
                 'removedFeatures' => $manifest->removedFeatures,
                 'hasCommitLog' => $commitLog !== null,
-                'isManual' => ! $agent instanceof Agent,
-                'updateDirectory' => $this->updateDirectoryName,
-                'manifestFilename' => $this->manifestFilename,
+                'updateDirectory' => $updateDirectory,
             ])->render());
 
             return $update;
