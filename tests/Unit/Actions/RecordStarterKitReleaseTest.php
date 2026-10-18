@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\RecordStarterKitRelease;
 use App\Data\StarterKitRelease;
+use App\Enums\Kit;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
@@ -19,10 +20,10 @@ it('records the release the project was created from', function (): void {
 
     expect(File::get("{$this->directory}/.starter-kit.json"))->toBe(<<<'JSON'
         {
-            "package": "shire-studio/laravel-starter-kit",
+            "package": "shire-studio/laravel-starter-kit-vue",
             "version": "v1.4.0",
             "reference": "c31ae68197d092fbaac6ac68712b44f230e27850",
-            "repository": "https://github.com/shire-studio/laravel-starter-kit.git"
+            "repository": "https://github.com/shire-studio/laravel-starter-kit-vue.git"
         }
 
         JSON);
@@ -48,17 +49,17 @@ it('records the features the project has removed', function (): void {
 
 it('leaves out the reference when it is unknown', function (): void {
     $release = new StarterKitRelease(
-        package: 'shire-studio/laravel-starter-kit',
+        kit: Kit::Vue,
         version: 'v1.5.0',
         reference: null,
-        repository: 'https://github.com/shire-studio/laravel-starter-kit.git',
+        repository: 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     );
 
     resolve(RecordStarterKitRelease::class)->handle($release, $this->directory);
 
     expect(File::json("{$this->directory}/.starter-kit.json"))->toBe([
-        'package' => 'shire-studio/laravel-starter-kit',
+        'package' => 'shire-studio/laravel-starter-kit-vue',
         'version' => 'v1.5.0',
-        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     ]);
 });

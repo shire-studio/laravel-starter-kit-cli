@@ -34,9 +34,9 @@ it('reads the features the project has removed', function (): void {
 
 it('reads a manifest shipped by a starter kit release without a reference', function (): void {
     File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
-        'package' => 'shire-studio/laravel-starter-kit',
+        'package' => 'shire-studio/laravel-starter-kit-vue',
         'version' => 'v1.5.0',
-        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     ]));
 
     $manifest = resolve(ReadStarterKitManifest::class)->handle($this->directory);
@@ -70,17 +70,17 @@ it('throws when the manifest is not an object', function (): void {
 })->throws(CouldNotReadStarterKitManifest::class);
 
 it('throws when the manifest has no version', function (): void {
-    File::put("{$this->directory}/.starter-kit.json", (string) json_encode(['package' => 'shire-studio/laravel-starter-kit']));
+    File::put("{$this->directory}/.starter-kit.json", (string) json_encode(['package' => 'shire-studio/laravel-starter-kit-vue']));
 
     resolve(ReadStarterKitManifest::class)->handle($this->directory);
 })->throws(CouldNotReadStarterKitManifest::class);
 
 it('throws when the reference is not text', function (): void {
     File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
-        'package' => 'shire-studio/laravel-starter-kit',
+        'package' => 'shire-studio/laravel-starter-kit-vue',
         'version' => 'v1.4.0',
         'reference' => 42,
-        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     ]));
 
     resolve(ReadStarterKitManifest::class)->handle($this->directory);
@@ -88,12 +88,22 @@ it('throws when the reference is not text', function (): void {
 
 it('throws when a removed feature is not text', function (): void {
     File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
-        'package' => 'shire-studio/laravel-starter-kit',
+        'package' => 'shire-studio/laravel-starter-kit-vue',
         'version' => 'v1.4.0',
         'reference' => 'c31ae68197d092fbaac6ac68712b44f230e27850',
-        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
         'removed' => [['name' => 'Authentication']],
     ]));
 
     resolve(ReadStarterKitManifest::class)->handle($this->directory);
 })->throws(CouldNotReadStarterKitManifest::class);
+
+it('throws when the package is not a starter kit', function (): void {
+    File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
+        'package' => 'shire-studio/laravel-starter-kit',
+        'version' => 'v1.4.0',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+    ]));
+
+    resolve(ReadStarterKitManifest::class)->handle($this->directory);
+})->throws(CouldNotReadStarterKitManifest::class, 'The [.starter-kit.json] file names [shire-studio/laravel-starter-kit], which is not a Shire Studio starter kit. Set its package to shire-studio/laravel-starter-kit-vue, shire-studio/laravel-starter-kit-react, shire-studio/laravel-starter-kit-svelte, shire-studio/laravel-starter-kit-livewire, shire-studio/laravel-starter-kit-api or shire-studio/laravel-starter-kit-blade, then run update again.');

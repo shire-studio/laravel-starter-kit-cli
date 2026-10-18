@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Data\StarterKitManifest;
 use App\Data\StarterKitRelease;
+use App\Enums\Kit;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Support\Arr;
@@ -35,9 +36,17 @@ final readonly class ReadStarterKitManifest
                 throw CouldNotReadStarterKitManifest::invalid($this->manifestFilename);
             }
 
+            $package = Arr::string($manifest, 'package');
+
+            $kit = Kit::fromPackage($package);
+
+            if (! $kit instanceof Kit) {
+                throw CouldNotReadStarterKitManifest::unknownPackage($this->manifestFilename, $package);
+            }
+
             return new StarterKitManifest(
                 release: new StarterKitRelease(
-                    package: Arr::string($manifest, 'package'),
+                    kit: $kit,
                     version: Arr::string($manifest, 'version'),
                     reference: $this->reference($manifest),
                     repository: Arr::string($manifest, 'repository'),

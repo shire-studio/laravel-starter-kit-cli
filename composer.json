@@ -1,7 +1,7 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
     "name": "shire-studio/laravel-starter-kit-cli",
-    "description": "Create new projects from the Shire Studio Laravel starter kit and keep existing projects up to date with it.",
+    "description": "Create new projects from the Shire Studio Laravel starter kits and keep existing projects up to date with them.",
     "keywords": ["laravel", "starter kit", "cli"],
     "type": "project",
     "license": "MIT",

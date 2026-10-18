@@ -21,7 +21,7 @@ final readonly class RecordStarterKitRelease
     public function handle(StarterKitRelease $release, string $directory, array $removedFeatures = []): void
     {
         $manifest = json_encode([
-            'package' => $release->package,
+            'package' => $release->kit->package(),
             'version' => $release->version,
             ...($release->reference === null ? [] : ['reference' => $release->reference]),
             'repository' => $release->repository,

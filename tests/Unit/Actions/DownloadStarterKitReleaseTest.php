@@ -15,7 +15,7 @@ it('downloads the release without installing or running scripts', function (): v
     Process::assertRan(fn (PendingProcess $process): bool => $process->command === [
         'composer',
         'create-project',
-        'shire-studio/laravel-starter-kit',
+        'shire-studio/laravel-starter-kit-vue',
         '/tmp/starter-kit/new',
         'v1.4.0',
         '--prefer-dist',

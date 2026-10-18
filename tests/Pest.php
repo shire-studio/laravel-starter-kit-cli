@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Data\StarterKitRelease;
+use App\Enums\Kit;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -33,13 +34,13 @@ function temporaryDirectory(): string
     return (string) realpath($directory);
 }
 
-function starterKitRelease(string $version = 'v1.4.0', string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850'): StarterKitRelease
+function starterKitRelease(string $version = 'v1.4.0', string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850', Kit $kit = Kit::Vue): StarterKitRelease
 {
     return new StarterKitRelease(
-        package: 'shire-studio/laravel-starter-kit',
+        kit: $kit,
         version: $version,
         reference: $reference,
-        repository: 'https://github.com/shire-studio/laravel-starter-kit.git',
+        repository: 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     );
 }
 
@@ -55,11 +56,11 @@ function createFiles(string $directory, array $files): void
 function composerShowOutput(array $versions, string $reference = 'c31ae68197d092fbaac6ac68712b44f230e27850'): string
 {
     return (string) json_encode([
-        'name' => 'shire-studio/laravel-starter-kit',
+        'name' => 'shire-studio/laravel-starter-kit-vue',
         'versions' => $versions,
         'source' => [
             'type' => 'git',
-            'url' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+            'url' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
             'reference' => $reference,
         ],
     ]);
