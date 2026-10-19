@@ -69,8 +69,8 @@
             "hash": "tree-v2:55e2b89de15dbf2afc0989bc08826247934f280fa81a97ed9c07266b65ef212c"
         },
         "illuminate/events": {
-            "version": "v13.35.0",
-            "hash": "tree-v2:edfa9ca242f24078e4205a2841aa84b5b44004399f25bb90900c133d3e6cfcfb"
+            "version": "v13.37.0",
+            "hash": "tree-v2:07889be6fb3f371cb6a8b055b2a0a9a2f5f18b4f8c35cd33ea661d96e7fb4613"
         },
         "illuminate/filesystem": {
             "version": "v13.37.0",
