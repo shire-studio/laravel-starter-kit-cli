@@ -2,14 +2,15 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "shire-studio/laravel-starter-kit-cli",
     "description": "Create new projects from the Shire Studio Laravel starter kits and keep existing projects up to date with them.",
-    "keywords": ["laravel", "starter kit", "cli"],
+    "keywords": [
+        "laravel",
+        "starter kit",
+        "cli"
+    ],
     "type": "project",
     "license": "MIT",
     "require": {
-        "php": "^8.5.0",
-        "illuminate/view": "^13.37",
-        "laravel-zero/foundation": "^13.25",
-        "laravel-zero/framework": "^13.0"
+        "php": "^8.5.0"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.6.2",
@@ -77,5 +78,7 @@
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
-    "bin": ["shire-kit"]
+    "bin": [
+        "builds/shire-kit"
+    ]
 }
