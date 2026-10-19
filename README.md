@@ -12,7 +12,18 @@
     <a href="LICENSE.md"><img src="https://img.shields.io/packagist/l/shire-studio/laravel-starter-kit-cli" alt="License"></a>
 </p>
 
-The installer for the [Shire Studio Laravel starter kit](https://github.com/shire-studio/laravel-starter-kit). Use `new` to start a project from the starter kit, and `update` to bring newer starter kit changes into a project you've already built with it. Think of it as the `laravel` installer, but for our starter kit.
+The installer for the Shire Studio Laravel starter kits. Use `new` to start a project from a starter kit, and `update` to bring newer starter kit changes into a project you've already built with one. Think of it as the `laravel` installer, but for our starter kits.
+
+## The Kits
+
+| Kit | Stack | Package |
+| --- | --- | --- |
+| `vue` | Inertia, Vue 3 and shadcn-vue | [shire-studio/laravel-starter-kit-vue](https://github.com/shire-studio/laravel-starter-kit-vue) |
+| `react` | Inertia, React 19 and shadcn/ui | [shire-studio/laravel-starter-kit-react](https://github.com/shire-studio/laravel-starter-kit-react) |
+| `svelte` | Inertia, Svelte 5 and shadcn-svelte | [shire-studio/laravel-starter-kit-svelte](https://github.com/shire-studio/laravel-starter-kit-svelte) |
+| `livewire` | Livewire 4 and Flux | [shire-studio/laravel-starter-kit-livewire](https://github.com/shire-studio/laravel-starter-kit-livewire) |
+| `api` | Sanctum tokens and JSON resources | [shire-studio/laravel-starter-kit-api](https://github.com/shire-studio/laravel-starter-kit-api) |
+| `blade` | Blade views and Tailwind CSS | [shire-studio/laravel-starter-kit-blade](https://github.com/shire-studio/laravel-starter-kit-blade) |
 
 ## Requirements
 
@@ -43,18 +54,19 @@ To upgrade to the latest release later, run `composer global update shire-studio
 ### Create a new project
 
 ```bash
-shire-kit new example-app
+shire-kit new example-app --kit=react
 ```
 
-This creates `example-app` from the latest stable starter kit release. You'll be asked whether to install the frontend dependencies and build the assets, and whether to initialise a git repository. Skip the questions with these options:
+This creates `example-app` from the latest stable release of the React starter kit. Without `--kit` you'll be asked which kit to use. You'll also be asked whether to install the frontend dependencies and build the assets (not for the API kit, which has no frontend), and whether to initialise a git repository. Skip the questions with these options:
 
 | Option | What it does |
 | --- | --- |
+| `--kit=<kit>` | Use `vue`, `react`, `svelte`, `livewire`, `api` or `blade`. Required with `--no-interaction` |
 | `--pnpm` / `--no-pnpm` | Install the frontend dependencies and build the assets, or don't |
 | `--git` / `--no-git` | Initialise a git repository with a first commit, or don't |
 | `--force`, `-f` | Overwrite the project directory if it already exists |
 
-Every new project gets a `.starter-kit.json` file recording the release it was created from. Commit it, because `update` reads it to work out which changes the project hasn't received yet.
+Every new project gets a `.starter-kit.json` file recording the kit and release it was created from. Commit it, because `update` reads it to work out which changes the project hasn't received yet.
 
 ### Update an existing project
 
@@ -67,7 +79,7 @@ shire-kit update
 
 The project has to be in a git repository and have no uncommitted changes, so everything the update does can be reviewed with `git diff` and undone with `git restore`. It can sit inside a larger repository, such as a monorepo. Only changes inside the project directory count.
 
-The CLI works out what changed between the project's starter kit release and the latest one, then hands those changes to a coding agent of your choice to apply. The agent does the judgement work: merging upstream changes into files you've customised, keeping your own changes, and fixing anything the update breaks. These agents are supported, and only the ones you have installed are offered:
+The CLI reads the kit from `.starter-kit.json`, works out what changed between the project's release and the latest release of that kit, then hands those changes to a coding agent of your choice to apply. The agent does the judgement work: merging upstream changes into files you've customised, keeping your own changes, and fixing anything the update breaks. These agents are supported, and only the ones you have installed are offered:
 
 - [Claude Code](https://claude.com/claude-code) (`claude`)
 - [Codex](https://github.com/openai/codex) (`codex`)
@@ -91,6 +103,7 @@ Nothing is committed. Review the changes, then commit them yourself.
 | Option | What it does |
 | --- | --- |
 | `--agent=<agent>` | Skip the question and use `claude`, `codex`, `gemini`, `opencode`, `cursor` or `none` |
+| `--kit=<kit>` | The kit a project without `.starter-kit.json` was created from |
 | `--force`, `-f` | Run even if the project has uncommitted changes |
 
 With `--agent=none`, or with `--no-interaction` and no `--agent`, the CLI only prepares `.starter-kit-update/` (unless there is nothing to apply, as described above). Follow `.starter-kit-update/PROMPT.md` yourself, or hand it to any coding agent you like. The prompt ends with the steps to mark the project as updated.
@@ -101,9 +114,9 @@ If you removed a starter kit feature from your project, such as authentication, 
 
 #### Projects without `.starter-kit.json`
 
-Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the agent first works out which starter kit release the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal. This needs an agent, so with `--agent=none` or `--no-interaction` the update fails until you add `.starter-kit.json` by hand.
+Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the CLI first needs the kit. Pass it with `--kit`, or pick it when asked (the kit named in the project's `composer.json` is preselected). The agent then works out which release of that kit the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal. This needs an agent, so with `--agent=none` or `--no-interaction` the update fails until you add `.starter-kit.json` by hand.
 
-`.starter-kit.json` has to name a stable starter kit release. If it records a pre-release or a branch, `update` stops instead of guessing what changed.
+`.starter-kit.json` has to name one of the kit packages above and a stable release of it. Projects created from the original `shire-studio/laravel-starter-kit` package need their `package` changed to `shire-studio/laravel-starter-kit-vue` first. If it records a pre-release or a branch, `update` stops instead of guessing what changed.
 
 ## Local Development
 

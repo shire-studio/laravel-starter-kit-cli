@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Kit;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
@@ -38,8 +39,8 @@ function fakeStarterKitProcesses(array $overrides = []): void
 it('creates a project from the latest starter kit release', function (): void {
     fakeStarterKitProcesses();
 
-    $this->artisan('new', ['name' => 'example-app', '--pnpm' => true, '--git' => true, '--no-interaction' => true])
-        ->expectsOutputToContain('Using starter kit v1.4.0.')
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--pnpm' => true, '--git' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('Using the Vue starter kit v1.4.0.')
         ->expectsOutputToContain("Project created in [{$this->projectDirectory}].")
         ->expectsOutputToContain('Frontend assets built.')
         ->expectsOutputToContain('Git repository initialised.')
@@ -47,15 +48,15 @@ it('creates a project from the latest starter kit release', function (): void {
         ->doesntExpectOutputToContain('pnpm install')
         ->assertSuccessful();
 
-    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
     Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['pnpm', 'run', 'build'] && $process->path === $this->projectDirectory);
-    Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from starter kit v1.4.0']);
+    Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from the Vue starter kit v1.4.0']);
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toBe([
-        'package' => 'shire-studio/laravel-starter-kit',
+        'package' => 'shire-studio/laravel-starter-kit-vue',
         'version' => 'v1.4.0',
         'reference' => 'c31ae68197d092fbaac6ac68712b44f230e27850',
-        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
     ]);
 });
 
@@ -64,12 +65,13 @@ it('asks for the project name and optional steps', function (): void {
 
     $this->artisan('new')
         ->expectsQuestion('What is the name of your project?', 'example-app')
+        ->expectsChoice('Which starter kit would you like to use?', 'vue', Kit::options())
         ->expectsConfirmation('Would you like to install the frontend dependencies and build the assets?', 'no')
         ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
         ->expectsOutputToContain('pnpm install')
         ->assertSuccessful();
 
-    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
     Process::assertDidntRun(['pnpm', 'install']);
     Process::assertDidntRun(['git', 'add', '--all']);
 });
@@ -77,7 +79,7 @@ it('asks for the project name and optional steps', function (): void {
 it('skips the optional steps when running without interaction', function (): void {
     fakeStarterKitProcesses();
 
-    $this->artisan('new', ['name' => 'example-app', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--no-interaction' => true])
         ->assertSuccessful();
 
     Process::assertDidntRun(['pnpm', '--version']);
@@ -89,7 +91,7 @@ it('skips the optional steps when running without interaction', function (): voi
 it('rejects a project name that starts with a dot', function (): void {
     Process::fake();
 
-    $this->artisan('new', ['name' => '.example-app', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => '.example-app', '--no-interaction' => true])
         ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
         ->assertFailed();
 
@@ -99,7 +101,7 @@ it('rejects a project name that starts with a dot', function (): void {
 it('rejects a project name that points to the parent directory', function (): void {
     Process::fake();
 
-    $this->artisan('new', ['name' => '..', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => '..', '--no-interaction' => true])
         ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
         ->assertFailed();
 
@@ -109,7 +111,7 @@ it('rejects a project name that points to the parent directory', function (): vo
 it('rejects a project name that contains a path separator', function (): void {
     Process::fake();
 
-    $this->artisan('new', ['name' => 'projects/example-app', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'projects/example-app', '--no-interaction' => true])
         ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
         ->assertFailed();
 
@@ -119,7 +121,7 @@ it('rejects a project name that contains a path separator', function (): void {
 it('rejects a project name that contains spaces', function (): void {
     Process::fake();
 
-    $this->artisan('new', ['name' => 'example app', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example app', '--no-interaction' => true])
         ->expectsOutputToContain('The name may only contain letters, numbers, dashes, underscores and dots')
         ->assertFailed();
 
@@ -131,7 +133,7 @@ it('refuses to overwrite an existing directory', function (): void {
 
     File::ensureDirectoryExists($this->projectDirectory);
 
-    $this->artisan('new', ['name' => 'example-app', '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--no-interaction' => true])
         ->expectsOutputToContain('The directory [example-app] already exists. Use --force to overwrite it.')
         ->assertFailed();
 
@@ -144,7 +146,7 @@ it('overwrites an existing directory when forced', function (): void {
     File::ensureDirectoryExists($this->projectDirectory);
     File::put("{$this->projectDirectory}/old-file.txt", 'old');
 
-    $this->artisan('new', ['name' => 'example-app', '--force' => true, '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--force' => true, '--no-interaction' => true])
         ->expectsOutputToContain('Removing the existing [example-app] directory.')
         ->assertSuccessful();
 
@@ -160,7 +162,7 @@ it('keeps an existing directory when the starter kit release cannot be resolved'
     File::ensureDirectoryExists($this->projectDirectory);
     File::put("{$this->projectDirectory}/old-file.txt", 'old');
 
-    $this->artisan('new', ['name' => 'example-app', '--force' => true, '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--force' => true, '--no-interaction' => true])
         ->expectsOutputToContain('Could not reach packagist.org.')
         ->assertFailed();
 
@@ -175,7 +177,7 @@ it('fails when required tools are missing', function (): void {
 
     File::ensureDirectoryExists($this->projectDirectory);
 
-    $this->artisan('new', ['name' => 'example-app', '--pnpm' => true, '--git' => true, '--force' => true, '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--pnpm' => true, '--git' => true, '--force' => true, '--no-interaction' => true])
         ->expectsOutputToContain('The following required tools could not be found: pnpm, git.')
         ->assertFailed();
 
@@ -189,7 +191,7 @@ it('fails when a subprocess fails', function (): void {
         "'pnpm' 'run' 'build'" => Process::result(output: 'Build output', errorOutput: 'Build failed', exitCode: 1),
     ]);
 
-    $this->artisan('new', ['name' => 'example-app', '--pnpm' => true, '--git' => true, '--no-interaction' => true])
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--pnpm' => true, '--git' => true, '--no-interaction' => true])
         ->expectsOutputToContain('Build failed')
         ->expectsOutputToContain('Build output')
         ->expectsOutputToContain("The command ['pnpm' 'run' 'build'] failed with exit code 1.")
@@ -203,9 +205,65 @@ it('fails when no stable starter kit release exists', function (): void {
         "*'show'*" => Process::result(composerShowOutput(['dev-main'])),
     ]);
 
-    $this->artisan('new', ['name' => 'example-app', '--no-interaction' => true])
-        ->expectsOutputToContain('No stable release of [shire-studio/laravel-starter-kit] could be found.')
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--no-interaction' => true])
+        ->expectsOutputToContain('No stable release of [shire-studio/laravel-starter-kit-vue] could be found.')
         ->assertFailed();
 
     Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('create-project', (array) $process->command, true));
+});
+
+it('creates a project from the chosen kit', function (): void {
+    fakeStarterKitProcesses();
+
+    $this->artisan('new', ['--kit' => 'react', 'name' => 'example-app', '--git' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('Using the React starter kit v1.4.0.')
+        ->assertSuccessful();
+
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-react', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from the React starter kit v1.4.0']);
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray([
+        'package' => 'shire-studio/laravel-starter-kit-react',
+    ]);
+});
+
+it('fails without a kit when running without interaction', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['name' => 'example-app', '--no-interaction' => true])
+        ->expectsOutputToContain('Choose a starter kit with --kit: vue, react, svelte, livewire, api or blade.')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('rejects an unknown kit', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['--kit' => 'angular', 'name' => 'example-app', '--no-interaction' => true])
+        ->expectsOutputToContain('The kit must be one of: vue, react, svelte, livewire, api or blade.')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('does not offer to install a frontend for a kit without one', function (): void {
+    fakeStarterKitProcesses();
+
+    $this->artisan('new', ['--kit' => 'api', 'name' => 'example-app'])
+        ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
+        ->doesntExpectOutputToContain('pnpm install')
+        ->assertSuccessful();
+
+    Process::assertDidntRun(['pnpm', 'install']);
+});
+
+it('rejects installing the frontend for a kit without one', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['--kit' => 'api', 'name' => 'example-app', '--pnpm' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('The API starter kit has no frontend to install. Run new without --pnpm.')
+        ->assertFailed();
+
+    Process::assertNothingRan();
 });

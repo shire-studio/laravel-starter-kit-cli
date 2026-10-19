@@ -16,7 +16,7 @@ final readonly class DownloadStarterKitRelease
             ->run([
                 'composer',
                 'create-project',
-                $release->package,
+                $release->kit->package(),
                 $directory,
                 $release->version,
                 '--prefer-dist',

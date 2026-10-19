@@ -1,6 +1,6 @@
 # Update this project to starter kit {!! $update->to->version !!}
 
-This project was created from the [{!! $update->to->package !!}]({!! $update->to->repository !!}) starter kit at **{!! $update->from->version !!}**. Bring in the upstream changes up to **{!! $update->to->version !!}** while keeping everything this project has changed since.
+This project was created from the {!! $update->to->kit->label() !!} starter kit ([{!! $update->to->kit->package() !!}]({!! $update->to->repository !!})) at **{!! $update->from->version !!}**. Bring in the upstream changes up to **{!! $update->to->version !!}** while keeping everything this project has changed since.
 
 ## What is in `{!! $updateDirectory->name !!}/`
 
@@ -42,8 +42,14 @@ These features were removed from this project on purpose in earlier updates:
 
 ## Dependencies and checks
 
+@if($update->to->kit->hasFrontend())
 - Apply changes to `composer.json` and `package.json` by hand, then regenerate the lock files with `composer update` for the changed packages and `pnpm install`.
+@else
+- Apply changes to `composer.json` by hand, then regenerate the lock file with `composer update` for the changed packages.
+@endif
+@if($update->to->kit->generatesTypes())
 - Run `composer transform-types` so the generated TypeScript types match the updated PHP code.
+@endif
 - Run the project's tests, linters and type checks, and fix anything the update broke.
 
 ## When you are done

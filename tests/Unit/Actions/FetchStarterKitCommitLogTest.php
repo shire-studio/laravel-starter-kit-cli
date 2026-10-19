@@ -17,7 +17,7 @@ it('fetches the commit messages between two releases', function (): void {
     expect($commitLog)->toBe("## feat: add two factor authentication\n\nAdds TOTP support.");
 
     Process::assertRanInOrder([
-        fn (PendingProcess $process): bool => $process->command === ['git', 'clone', '--quiet', '--bare', '--filter=tree:0', 'https://github.com/shire-studio/laravel-starter-kit.git', '/tmp/commits.git']
+        fn (PendingProcess $process): bool => $process->command === ['git', 'clone', '--quiet', '--bare', '--filter=tree:0', 'https://github.com/shire-studio/laravel-starter-kit-vue.git', '/tmp/commits.git']
             && $process->environment === ['GIT_TERMINAL_PROMPT' => '0'],
         ['git', '--git-dir=/tmp/commits.git', 'log', '--no-merges', '--format=## %s%n%n%b%n', 'v1.3.0..v1.4.0'],
     ]);

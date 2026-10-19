@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\RecordStarterKitRelease;
+use App\Enums\Kit;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
@@ -254,7 +255,7 @@ it('does nothing when the project is already up to date', function (): void {
         ->expectsOutputToContain('The project is already up to date with starter kit v1.4.0.')
         ->assertSuccessful();
 
-    Process::assertRanTimes(fn (PendingProcess $process): bool => $process->command === ['composer', 'show', 'shire-studio/laravel-starter-kit', '--all', '--format=json'], 1);
+    Process::assertRanTimes(fn (PendingProcess $process): bool => $process->command === ['composer', 'show', 'shire-studio/laravel-starter-kit-vue', '--all', '--format=json'], 1);
     Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('create-project', $process->command, true));
 });
 
@@ -269,7 +270,7 @@ it('detects the starter kit version when the project has no manifest', function 
         },
     ]);
 
-    $this->artisan('update', ['--agent' => 'claude'])
+    $this->artisan('update', ['--kit' => 'vue', '--agent' => 'claude'])
         ->expectsOutputToContain('No [.starter-kit.json] was found. Claude Code will work out which starter kit version this project was created from.')
         ->expectsConfirmation('Claude Code detected starter kit v1.3.0. Use it as the base for the update?', 'yes')
         ->expectsOutputToContain('Recorded starter kit v1.3.0 in [.starter-kit.json].')
@@ -287,7 +288,7 @@ it('fails when the agent does not detect a starter kit version', function (): vo
 
     fakeUpdateProcesses($this->projectDirectory);
 
-    $this->artisan('update', ['--agent' => 'claude'])
+    $this->artisan('update', ['--kit' => 'vue', '--agent' => 'claude'])
         ->expectsOutputToContain('Claude Code did not record a starter kit version that exists. Add [.starter-kit.json] by hand or run update again.')
         ->assertFailed();
 
@@ -301,7 +302,7 @@ it('warns when the agent crashes while detecting the version', function (): void
         "'claude' 'Read .starter-kit-update/DETECT.md*" => Process::result(errorOutput: 'EINVAL: invalid argument, kqueue', exitCode: 1),
     ]);
 
-    $this->artisan('update', ['--agent' => 'claude'])
+    $this->artisan('update', ['--kit' => 'vue', '--agent' => 'claude'])
         ->expectsOutputToContain('Claude Code exited with code 1.')
         ->expectsOutputToContain('Claude Code did not record a starter kit version that exists.')
         ->assertFailed();
@@ -318,7 +319,7 @@ it('fails when the agent detects a version that does not exist', function (): vo
         },
     ]);
 
-    $this->artisan('update', ['--agent' => 'claude'])
+    $this->artisan('update', ['--kit' => 'vue', '--agent' => 'claude'])
         ->expectsOutputToContain('Claude Code did not record a starter kit version that exists.')
         ->assertFailed();
 });
@@ -334,7 +335,7 @@ it('fails when the detected version is rejected', function (): void {
         },
     ]);
 
-    $this->artisan('update', ['--agent' => 'claude'])
+    $this->artisan('update', ['--kit' => 'vue', '--agent' => 'claude'])
         ->expectsConfirmation('Claude Code detected starter kit v1.3.0. Use it as the base for the update?', 'no')
         ->expectsOutputToContain('Update cancelled. Add [.starter-kit.json] by hand or run update again.')
         ->assertFailed();
@@ -348,7 +349,7 @@ it('fails without a manifest when no agent is chosen', function (): void {
 
     fakeUpdateProcesses($this->projectDirectory);
 
-    $this->artisan('update', ['--no-interaction' => true])
+    $this->artisan('update', ['--kit' => 'vue', '--no-interaction' => true])
         ->expectsOutputToContain('No [.starter-kit.json] was found, so the starter kit version this project was created from is unknown. Run update again and choose an agent to detect it, or add [.starter-kit.json] by hand.')
         ->assertFailed();
 });
@@ -460,5 +461,102 @@ it('fails when a subprocess fails', function (): void {
         ->expectsOutputToContain('Could not download the release')
         ->expectsOutputToContain('Download output')
         ->expectsOutputToContain('failed with exit code 1.')
+        ->assertFailed();
+});
+
+it('asks which kit the project was created from when it has no manifest', function (): void {
+    File::delete("{$this->projectDirectory}/.starter-kit.json");
+    File::put("{$this->projectDirectory}/composer.json", (string) json_encode(['name' => 'shire-studio/laravel-starter-kit-react']));
+
+    fakeUpdateProcesses($this->projectDirectory, [
+        "'claude' 'Read .starter-kit-update/DETECT.md*" => function (): FakeProcessResult {
+            File::put("{$this->updateDirectory}/detected-version", "v1.3.0\n");
+
+            return Process::result();
+        },
+    ]);
+
+    $this->artisan('update', ['--agent' => 'claude'])
+        ->expectsChoice('Which starter kit was this project created from?', 'react', Kit::options())
+        ->expectsConfirmation('Claude Code detected starter kit v1.3.0. Use it as the base for the update?', 'no')
+        ->assertFailed();
+
+    Process::assertRan(['composer', 'show', 'shire-studio/laravel-starter-kit-react', '--all', '--format=json']);
+});
+
+it('works out the kit from composer.json without interaction', function (): void {
+    File::delete("{$this->projectDirectory}/.starter-kit.json");
+    File::put("{$this->projectDirectory}/composer.json", (string) json_encode(['name' => 'shire-studio/laravel-starter-kit-livewire']));
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--no-interaction' => true])
+        ->expectsOutputToContain('No [.starter-kit.json] was found, so the starter kit version this project was created from is unknown.')
+        ->assertFailed();
+
+    Process::assertRan(['composer', 'show', 'shire-studio/laravel-starter-kit-livewire', '--all', '--format=json']);
+});
+
+it('fails without a manifest when the kit cannot be worked out', function (): void {
+    File::delete("{$this->projectDirectory}/.starter-kit.json");
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--no-interaction' => true])
+        ->expectsOutputToContain('No [.starter-kit.json] was found, so the starter kit this project was created from is unknown. Pass it with --kit: vue, react, svelte, livewire, api or blade.')
+        ->assertFailed();
+
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('show', (array) $process->command, true));
+});
+
+it('updates the project from the kit recorded in its manifest', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.3.0', 'a1b2c3', Kit::Api), $this->projectDirectory);
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--no-interaction' => true])
+        ->expectsOutputToContain('The update is ready to apply.')
+        ->assertSuccessful();
+
+    Process::assertRan(['composer', 'show', 'shire-studio/laravel-starter-kit-api', '--all', '--format=json']);
+
+    expect(File::get("{$this->updateDirectory}/PROMPT.md"))
+        ->toContain('API starter kit')
+        ->not->toContain('pnpm install')
+        ->not->toContain('composer transform-types');
+});
+
+it('rejects a kit that does not match the manifest', function (): void {
+    Process::fake([
+        "*'rev-parse' '--is-inside-work-tree'" => Process::result("true\n"),
+        '*' => Process::result(),
+    ]);
+
+    $this->artisan('update', ['--kit' => 'react', '--no-interaction' => true])
+        ->expectsOutputToContain('[.starter-kit.json] records the Vue starter kit, not React. Run update without --kit.')
+        ->assertFailed();
+});
+
+it('rejects an unknown kit', function (): void {
+    Process::fake();
+
+    $this->artisan('update', ['--kit' => 'angular', '--no-interaction' => true])
+        ->expectsOutputToContain('The kit must be one of: vue, react, svelte, livewire, api or blade.')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('fails when the manifest names a package that is not a starter kit', function (): void {
+    File::put("{$this->projectDirectory}/.starter-kit.json", (string) json_encode([
+        'package' => 'shire-studio/laravel-starter-kit',
+        'version' => 'v1.3.0',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit.git',
+    ]));
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--no-interaction' => true])
+        ->expectsOutputToContain('The [.starter-kit.json] file names [shire-studio/laravel-starter-kit], which is not a Shire Studio starter kit.')
         ->assertFailed();
 });

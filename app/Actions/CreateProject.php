@@ -16,7 +16,7 @@ final readonly class CreateProject
     public function handle(StarterKitRelease $release, string $directory): void
     {
         $result = Process::forever()
-            ->run(['composer', 'create-project', $release->package, $directory, $release->version, '--prefer-dist', '--no-interaction']);
+            ->run(['composer', 'create-project', $release->kit->package(), $directory, $release->version, '--prefer-dist', '--no-interaction']);
 
         if ($result->failed()) {
             $this->deleteDirectory->handle($directory);

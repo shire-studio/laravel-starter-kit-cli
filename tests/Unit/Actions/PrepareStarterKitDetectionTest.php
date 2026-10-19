@@ -20,7 +20,7 @@ it('writes the prompt for detecting the starter kit version', function (): void 
     expect(File::get("{$this->directory}/.starter-kit-update/DETECT.md"))
         ->toContain('# Find the starter kit version this project was created from')
         ->toContain("- v1.4.0\n- v1.3.0\n")
-        ->toContain('composer create-project shire-studio/laravel-starter-kit .starter-kit-update/releases/<version> <version> --no-install --no-scripts')
+        ->toContain('composer create-project shire-studio/laravel-starter-kit-vue .starter-kit-update/releases/<version> <version> --no-install --no-scripts')
         ->toContain('`.starter-kit-update/detected-version`');
 });
 

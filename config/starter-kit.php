@@ -6,19 +6,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Starter Kit Package
-    |--------------------------------------------------------------------------
-    |
-    | The Composer package that new projects are created from. The latest
-    | stable release of this package is resolved from Packagist, so any
-    | override must be a published package with tagged releases.
-    |
-    */
-
-    'package' => env('STARTER_KIT_PACKAGE', 'shire-studio/laravel-starter-kit'),
-
-    /*
-    |--------------------------------------------------------------------------
     | Release Manifest Filename
     |--------------------------------------------------------------------------
     |

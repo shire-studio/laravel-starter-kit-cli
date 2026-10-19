@@ -13,8 +13,10 @@ use App\Actions\ListStableStarterKitVersions;
 use App\Actions\RecordStarterKitRelease;
 use App\Actions\ResolveLatestStarterKitRelease;
 use App\Data\StarterKitRelease;
+use App\Enums\Kit;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -27,6 +29,7 @@ use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\outro;
+use function Laravel\Prompts\select;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\text;
 use function Laravel\Prompts\warning;
@@ -35,7 +38,7 @@ final class NewCommand extends Command
 {
     protected $name = 'new';
 
-    protected $description = 'Create a new project from the Shire Studio Laravel starter kit';
+    protected $description = 'Create a new project from a Shire Studio Laravel starter kit';
 
     public function interact(InputInterface $input, OutputInterface $output): void
     {
@@ -48,8 +51,21 @@ final class NewCommand extends Command
             ));
         }
 
-        if ($input->getOption('pnpm') === null) {
-            $input->setOption('pnpm', confirm('Would you like to install the frontend dependencies and build the assets?'));
+        if ($input->getOption('kit') === null) {
+            $input->setOption('kit', select(
+                label: 'Which starter kit would you like to use?',
+                options: Kit::options(),
+            ));
+        }
+
+        $kitOption = $input->getOption('kit');
+
+        $kit = is_string($kitOption) ? Kit::tryFrom($kitOption) : null;
+
+        if ($kit?->hasFrontend() === true) {
+            if ($input->getOption('pnpm') === null) {
+                $input->setOption('pnpm', confirm('Would you like to install the frontend dependencies and build the assets?'));
+            }
         }
 
         if ($input->getOption('git') === null) {
@@ -68,6 +84,7 @@ final class NewCommand extends Command
         InitialiseGitRepository $initialiseGitRepository,
     ): int {
         $name = $this->argument('name');
+        $kitOption = $this->option('kit');
         $shouldInstallFrontend = $this->option('pnpm') === true;
         $shouldInitialiseGitRepository = $this->option('git') === true;
 
@@ -77,6 +94,28 @@ final class NewCommand extends Command
             error($nameError);
 
             return self::FAILURE;
+        }
+
+        if (! is_string($kitOption)) {
+            error("Choose a starter kit with --kit: {$this->kitChoiceList()}.");
+
+            return self::FAILURE;
+        }
+
+        $kit = Kit::tryFrom($kitOption);
+
+        if (! $kit instanceof Kit) {
+            error("The kit must be one of: {$this->kitChoiceList()}.");
+
+            return self::FAILURE;
+        }
+
+        if ($shouldInstallFrontend) {
+            if (! $kit->hasFrontend()) {
+                error("The {$kit->label()} starter kit has no frontend to install. Run new without --pnpm.");
+
+                return self::FAILURE;
+            }
         }
 
         $missingTools = $findMissingTools->handle($this->requiredTools($shouldInstallFrontend, $shouldInitialiseGitRepository));
@@ -93,11 +132,11 @@ final class NewCommand extends Command
 
         try {
             $release = spin(
-                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($listStableStarterKitVersions->handle()),
-                'Resolving the latest starter kit release...',
+                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($kit, $listStableStarterKitVersions->handle($kit)),
+                "Resolving the latest {$kit->label()} starter kit release...",
             );
 
-            info("Using starter kit {$release->version}.");
+            info("Using the {$kit->label()} starter kit {$release->version}.");
 
             if (File::isDirectory($directory)) {
                 warning("Removing the existing [{$name}] directory.");
@@ -107,7 +146,7 @@ final class NewCommand extends Command
 
             spin(
                 fn () => $createProject->handle($release, $directory),
-                "Creating [{$name}] from the starter kit...",
+                "Creating [{$name}] from the {$kit->label()} starter kit...",
             );
 
             $recordStarterKitRelease->handle($release, $directory);
@@ -116,7 +155,7 @@ final class NewCommand extends Command
 
             if ($shouldInstallFrontend) {
                 spin(
-                    fn () => $installFrontend->handle($directory),
+                    fn () => $installFrontend->handle($kit, $directory),
                     'Installing the frontend dependencies and building the assets...',
                 );
 
@@ -125,7 +164,7 @@ final class NewCommand extends Command
 
             if ($shouldInitialiseGitRepository) {
                 spin(
-                    fn () => $initialiseGitRepository->handle($directory, "chore: create project from starter kit {$release->version}"),
+                    fn () => $initialiseGitRepository->handle($directory, "chore: create project from the {$kit->label()} starter kit {$release->version}"),
                     'Initialising a git repository...',
                 );
 
@@ -146,7 +185,7 @@ final class NewCommand extends Command
             return self::FAILURE;
         }
 
-        note(implode(PHP_EOL, $this->nextSteps($name, $shouldInstallFrontend)));
+        note(implode(PHP_EOL, $this->nextSteps($name, $kit, $shouldInstallFrontend)));
 
         outro('Your project is ready.');
 
@@ -169,6 +208,7 @@ final class NewCommand extends Command
     public function getOptions(): array
     {
         return [
+            ['kit', null, InputOption::VALUE_REQUIRED, "The starter kit to use: {$this->kitChoiceList()}"],
             ['pnpm', null, InputOption::VALUE_NEGATABLE, 'Install the frontend dependencies and build the assets'],
             ['git', null, InputOption::VALUE_NEGATABLE, 'Initialise a git repository'],
             ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the project directory if it already exists'],
@@ -213,13 +253,20 @@ final class NewCommand extends Command
     /**
      * @return list<string>
      */
-    private function nextSteps(string $name, bool $shouldInstallFrontend): array
+    private function nextSteps(string $name, Kit $kit, bool $shouldInstallFrontend): array
     {
+        $needsFrontendInstall = $kit->hasFrontend() && ! $shouldInstallFrontend;
+
         return [
             'Next steps:',
             "  cd {$name}",
-            ...($shouldInstallFrontend ? [] : ['  pnpm install']),
+            ...($needsFrontendInstall ? ['  pnpm install'] : []),
             '  composer dev',
         ];
+    }
+
+    private function kitChoiceList(): string
+    {
+        return Arr::join(array_column(Kit::cases(), 'value'), ', ', ' or ');
     }
 }

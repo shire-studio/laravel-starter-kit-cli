@@ -8,6 +8,7 @@ use App\Actions\CompleteStarterKitUpdate;
 use App\Actions\DeleteDirectory;
 use App\Actions\FindInstalledAgents;
 use App\Actions\FindMissingTools;
+use App\Actions\GuessStarterKit;
 use App\Actions\IgnoreUpdateDirectory;
 use App\Actions\IsGitRepository;
 use App\Actions\LaunchAgent;
@@ -27,6 +28,7 @@ use App\Data\StarterKitRelease;
 use App\Data\StarterKitUpdate;
 use App\Data\UpdateDirectory;
 use App\Enums\Agent;
+use App\Enums\Kit;
 use App\Exceptions\CouldNotCompleteStarterKitUpdate;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
@@ -59,6 +61,7 @@ final class UpdateCommand extends Command
         IsGitRepository $isGitRepository,
         ListUncommittedChanges $listUncommittedChanges,
         ReadStarterKitManifest $readStarterKitManifest,
+        GuessStarterKit $guessStarterKit,
         ListStableStarterKitVersions $listStableStarterKitVersions,
         ResolveLatestStarterKitRelease $resolveLatestStarterKitRelease,
         FindInstalledAgents $findInstalledAgents,
@@ -78,6 +81,17 @@ final class UpdateCommand extends Command
         $updateDirectory = UpdateDirectory::in($directory);
         $manifestFilename = $updateDirectory->manifestFilename;
         $agentOption = $this->option('agent');
+        $kitOption = $this->option('kit');
+
+        if (is_string($kitOption)) {
+            if (Kit::tryFrom($kitOption) === null) {
+                error("The kit must be one of: {$this->kitChoiceList()}.");
+
+                return self::FAILURE;
+            }
+        }
+
+        $requestedKit = is_string($kitOption) ? Kit::tryFrom($kitOption) : null;
 
         if (is_string($agentOption)) {
             if (! in_array($agentOption, $this->agentChoices(), true)) {
@@ -132,9 +146,27 @@ final class UpdateCommand extends Command
         try {
             $manifest = $readStarterKitManifest->handle($directory);
 
+            if ($manifest instanceof StarterKitManifest) {
+                if ($requestedKit instanceof Kit) {
+                    if ($requestedKit !== $manifest->release->kit) {
+                        error("[{$manifestFilename}] records the {$manifest->release->kit->label()} starter kit, not {$requestedKit->label()}. Run update without --kit.");
+
+                        return self::FAILURE;
+                    }
+                }
+            }
+
+            $kit = $manifest?->release->kit ?? $this->chooseKit($requestedKit, $guessStarterKit->handle($directory));
+
+            if (! $kit instanceof Kit) {
+                error("No [{$manifestFilename}] was found, so the starter kit this project was created from is unknown. Pass it with --kit: {$this->kitChoiceList()}.");
+
+                return self::FAILURE;
+            }
+
             $versions = spin(
-                $listStableStarterKitVersions->handle(...),
-                'Listing the stable starter kit releases...',
+                fn (): array => $listStableStarterKitVersions->handle($kit),
+                "Listing the stable {$kit->label()} starter kit releases...",
             );
 
             if ($manifest instanceof StarterKitManifest) {
@@ -146,7 +178,7 @@ final class UpdateCommand extends Command
             }
 
             $latestRelease = spin(
-                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($versions),
+                fn (): StarterKitRelease => $resolveLatestStarterKitRelease->handle($kit, $versions),
                 'Resolving the latest starter kit release...',
             );
 
@@ -204,7 +236,7 @@ final class UpdateCommand extends Command
                 }
 
                 $baseRelease = spin(
-                    fn (): StarterKitRelease => $resolveStarterKitRelease->handle($detectedVersion),
+                    fn (): StarterKitRelease => $resolveStarterKitRelease->handle($kit, $detectedVersion),
                     "Resolving starter kit {$detectedVersion}...",
                 );
 
@@ -317,6 +349,7 @@ final class UpdateCommand extends Command
 
         return [
             ['agent', null, InputOption::VALUE_REQUIRED, "The agent to hand the update to: {$agentChoiceList}"],
+            ['kit', null, InputOption::VALUE_REQUIRED, "The starter kit the project was created from, when it has no manifest: {$this->kitChoiceList()}"],
             ['force', 'f', InputOption::VALUE_NONE, 'Run even if the project has uncommitted changes'],
         ];
     }
@@ -348,6 +381,30 @@ final class UpdateCommand extends Command
         );
 
         return Agent::tryFrom((string) $choice);
+    }
+
+    private function chooseKit(?Kit $requestedKit, ?Kit $guessedKit): ?Kit
+    {
+        if ($requestedKit instanceof Kit) {
+            return $requestedKit;
+        }
+
+        if (! $this->input->isInteractive()) {
+            return $guessedKit;
+        }
+
+        $choice = select(
+            label: 'Which starter kit was this project created from?',
+            options: Kit::options(),
+            default: $guessedKit?->value,
+        );
+
+        return Kit::tryFrom((string) $choice);
+    }
+
+    private function kitChoiceList(): string
+    {
+        return Arr::join(array_column(Kit::cases(), 'value'), ', ', ' or ');
     }
 
     /**

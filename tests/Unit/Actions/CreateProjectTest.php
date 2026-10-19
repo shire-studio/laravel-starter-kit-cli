@@ -16,7 +16,7 @@ it('creates the project from the given release', function (): void {
     Process::assertRan([
         'composer',
         'create-project',
-        'shire-studio/laravel-starter-kit',
+        'shire-studio/laravel-starter-kit-vue',
         '/projects/example-app',
         'v1.4.0',
         '--prefer-dist',
