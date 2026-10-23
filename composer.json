@@ -7,13 +7,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.5.0",
-        "illuminate/view": "^13.37",
+        "illuminate/view": "^13.38",
         "laravel-zero/foundation": "^13.25",
         "laravel-zero/framework": "^13.0"
     },
     "require-dev": {
-        "driftingly/rector-laravel": "^2.6.2",
-        "larastan/larastan": "^3.13.0",
+        "driftingly/rector-laravel": "^2.7.0",
+        "larastan/larastan": "^3.13.1",
         "laravel/boost": "^2.10.3",
         "laravel/pint": "^1.32.1",
         "laravel/vet": "^0.2.1",
