@@ -21,4 +21,5 @@ arch('actions')
 
 arch('commands')
     ->expect('App\Commands')
+    ->classes()
     ->not->toBeUsed();

@@ -12,8 +12,11 @@ use App\Actions\InstallFrontend;
 use App\Actions\ListStableStarterKitVersions;
 use App\Actions\RecordStarterKitRelease;
 use App\Actions\ResolveLatestStarterKitRelease;
+use App\Commands\Concerns\ReportsFailedProcesses;
+use App\Data\StarterKitManifest;
 use App\Data\StarterKitRelease;
 use App\Enums\Kit;
+use App\Exceptions\CouldNotApplyTeamsOverlay;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Support\Arr;
@@ -36,6 +39,8 @@ use function Laravel\Prompts\warning;
 
 final class NewCommand extends Command
 {
+    use ReportsFailedProcesses;
+
     protected $name = 'new';
 
     protected $description = 'Create a new project from a Shire Studio Laravel starter kit';
@@ -62,6 +67,12 @@ final class NewCommand extends Command
 
         $kit = is_string($kitOption) ? Kit::tryFrom($kitOption) : null;
 
+        if ($kit?->hasTeams() === true) {
+            if ($input->getOption('teams') === null) {
+                $input->setOption('teams', confirm('Would you like to add teams?', default: false));
+            }
+        }
+
         if ($kit?->hasFrontend() === true) {
             if ($input->getOption('pnpm') === null) {
                 $input->setOption('pnpm', confirm('Would you like to install the frontend dependencies and build the assets?'));
@@ -85,6 +96,7 @@ final class NewCommand extends Command
     ): int {
         $name = $this->argument('name');
         $kitOption = $this->option('kit');
+        $shouldAddTeams = $this->option('teams') === true;
         $shouldInstallFrontend = $this->option('pnpm') === true;
         $shouldInitialiseGitRepository = $this->option('git') === true;
 
@@ -108,6 +120,14 @@ final class NewCommand extends Command
             error("The kit must be one of: {$this->kitChoiceList()}.");
 
             return self::FAILURE;
+        }
+
+        if ($shouldAddTeams) {
+            if (! $kit->hasTeams()) {
+                error("The {$kit->label()} starter kit has no teams variant. Run new without --teams.");
+
+                return self::FAILURE;
+            }
         }
 
         if ($shouldInstallFrontend) {
@@ -136,7 +156,9 @@ final class NewCommand extends Command
                 "Resolving the latest {$kit->label()} starter kit release...",
             );
 
-            info("Using the {$kit->label()} starter kit {$release->version}.");
+            $variant = $shouldAddTeams ? ' with teams' : '';
+
+            info("Using the {$kit->label()} starter kit {$release->version}{$variant}.");
 
             if (File::isDirectory($directory)) {
                 warning("Removing the existing [{$name}] directory.");
@@ -145,11 +167,11 @@ final class NewCommand extends Command
             }
 
             spin(
-                fn () => $createProject->handle($release, $directory),
+                fn () => $createProject->handle($release, $directory, $shouldAddTeams),
                 "Creating [{$name}] from the {$kit->label()} starter kit...",
             );
 
-            $recordStarterKitRelease->handle($release, $directory);
+            $recordStarterKitRelease->handle(new StarterKitManifest($release, teams: $shouldAddTeams), $directory);
 
             info("Project created in [{$directory}].");
 
@@ -164,19 +186,18 @@ final class NewCommand extends Command
 
             if ($shouldInitialiseGitRepository) {
                 spin(
-                    fn () => $initialiseGitRepository->handle($directory, "chore: create project from the {$kit->label()} starter kit {$release->version}"),
+                    fn () => $initialiseGitRepository->handle($directory, "chore: create project from the {$kit->label()} starter kit {$release->version}{$variant}"),
                     'Initialising a git repository...',
                 );
 
                 info('Git repository initialised.');
             }
         } catch (ProcessFailedException $exception) {
-            $result = $exception->result;
+            return $this->reportFailedProcess($exception);
+        } catch (CouldNotApplyTeamsOverlay $exception) {
+            $hint = $exception->releaseHasNoTeams ? ' Run new without --teams.' : '';
 
-            $this->output->write($result->errorOutput());
-            $this->output->write($result->output());
-
-            error("The command [{$result->command()}] failed with exit code {$result->exitCode()}.");
+            error("{$exception->getMessage()}{$hint}");
 
             return self::FAILURE;
         } catch (CouldNotResolveStarterKitRelease $exception) {
@@ -209,6 +230,7 @@ final class NewCommand extends Command
     {
         return [
             ['kit', null, InputOption::VALUE_REQUIRED, "The starter kit to use: {$this->kitChoiceList()}"],
+            ['teams', null, InputOption::VALUE_NEGATABLE, 'Add teams to the project'],
             ['pnpm', null, InputOption::VALUE_NEGATABLE, 'Install the frontend dependencies and build the assets'],
             ['git', null, InputOption::VALUE_NEGATABLE, 'Initialise a git repository'],
             ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the project directory if it already exists'],

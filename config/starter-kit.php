@@ -30,4 +30,18 @@ return [
 
     'update_directory' => env('STARTER_KIT_UPDATE_DIRECTORY', '.starter-kit-update'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Overlay Directory
+    |--------------------------------------------------------------------------
+    |
+    | The directory, relative to the root of a starter kit release, that holds
+    | the overlays for its variants, such as teams. The CLI applies or drops
+    | them when it creates a project or compares two starter kit releases.
+    | Starter kit releases fix this path, so it has no environment override.
+    |
+    */
+
+    'overlay_directory' => '.starter-kit',
+
 ];

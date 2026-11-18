@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CompleteStarterKitUpdate;
 use App\Actions\RecordStarterKitRelease;
+use App\Data\StarterKitManifest;
 use App\Data\UpdateDirectory;
 use App\Exceptions\CouldNotCompleteStarterKitUpdate;
 use Illuminate\Support\Facades\File;
@@ -13,8 +14,8 @@ beforeEach(function (): void {
 
     createFiles($this->directory, ['.starter-kit-update/PROMPT.md' => '# Update']);
 
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.3.0', 'a1b2c3'), $this->directory, ['Teams']);
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), "{$this->directory}/.starter-kit-update", ['Teams', 'Authentication']);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), ['Teams']), $this->directory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease(), ['Teams', 'Authentication']), "{$this->directory}/.starter-kit-update");
 });
 
 afterEach(function (): void {

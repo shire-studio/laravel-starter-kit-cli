@@ -23,18 +23,21 @@ use App\Actions\RecordStarterKitRelease;
 use App\Actions\ResolveLatestStarterKitRelease;
 use App\Actions\ResolveStarterKitRelease;
 use App\Actions\StageRemovedFeatures;
+use App\Commands\Concerns\ChecksProjectBeforeChanges;
+use App\Commands\Concerns\HandsOverToAgents;
+use App\Commands\Concerns\ReportsFailedProcesses;
 use App\Data\StarterKitManifest;
 use App\Data\StarterKitRelease;
 use App\Data\StarterKitUpdate;
 use App\Data\UpdateDirectory;
 use App\Enums\Agent;
 use App\Enums\Kit;
+use App\Exceptions\CouldNotApplyTeamsOverlay;
 use App\Exceptions\CouldNotCompleteStarterKitUpdate;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use App\Exceptions\CouldNotResolveStarterKitRelease;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -50,7 +53,9 @@ use function Laravel\Prompts\warning;
 
 final class UpdateCommand extends Command
 {
-    private const string NO_AGENT_CHOICE = 'none';
+    use ChecksProjectBeforeChanges;
+    use HandsOverToAgents;
+    use ReportsFailedProcesses;
 
     protected $name = 'update';
 
@@ -93,54 +98,30 @@ final class UpdateCommand extends Command
 
         $requestedKit = is_string($kitOption) ? Kit::tryFrom($kitOption) : null;
 
-        if (is_string($agentOption)) {
-            if (! in_array($agentOption, $this->agentChoices(), true)) {
-                $agentChoiceList = implode(', ', $this->agentChoices());
+        $agentOptionProblem = $this->invalidAgentOption();
 
-                error("The agent must be one of: {$agentChoiceList}.");
+        if ($agentOptionProblem !== null) {
+            error($agentOptionProblem);
 
-                return self::FAILURE;
-            }
+            return self::FAILURE;
         }
 
         $requestedAgent = is_string($agentOption) ? Agent::tryFrom($agentOption) : null;
 
-        if ($requestedAgent instanceof Agent) {
-            if (! $this->input->isInteractive()) {
-                error('An agent session needs an interactive terminal. Run update without --no-interaction, or use --agent=none.');
+        $projectProblem = $this->projectProblem($findMissingTools, $isGitRepository, $listUncommittedChanges, $directory, 'the update');
 
-                return self::FAILURE;
-            }
-        }
-
-        $missingTools = $findMissingTools->handle(['php', 'composer', 'git']);
-
-        if ($missingTools !== []) {
-            $missingToolList = implode(', ', $missingTools);
-
-            error("The following required tools could not be found: {$missingToolList}.");
+        if ($projectProblem !== null) {
+            error($projectProblem);
 
             return self::FAILURE;
         }
 
-        if (File::missing("{$directory}/composer.json")) {
-            error("No composer.json was found in [{$directory}]. Run update from the root of a project created from the starter kit.");
+        $pendingChangesProblem = $this->pendingChangesProblem($updateDirectory);
+
+        if ($pendingChangesProblem !== null) {
+            error($pendingChangesProblem);
 
             return self::FAILURE;
-        }
-
-        if (! $isGitRepository->handle($directory)) {
-            error("[{$directory}] is not a git repository. Commit the project to git first so the update can be reviewed and undone.");
-
-            return self::FAILURE;
-        }
-
-        if ($this->option('force') !== true) {
-            if ($listUncommittedChanges->handle($directory) !== []) {
-                error('The project has uncommitted changes. Commit or stash them first so the update can be reviewed and undone, or use --force.');
-
-                return self::FAILURE;
-            }
         }
 
         try {
@@ -192,7 +173,7 @@ final class UpdateCommand extends Command
 
             $agent = is_string($agentOption)
                 ? $requestedAgent
-                : $this->chooseAgent($installedAgents);
+                : $this->chooseAgent('Which agent should apply the update?', $installedAgents);
 
             if ($agent instanceof Agent) {
                 if (! in_array($agent, $installedAgents, true)) {
@@ -240,11 +221,11 @@ final class UpdateCommand extends Command
                     "Resolving starter kit {$detectedVersion}...",
                 );
 
-                $recordStarterKitRelease->handle($baseRelease, $directory);
+                $manifest = new StarterKitManifest($baseRelease);
+
+                $recordStarterKitRelease->handle($manifest, $directory);
 
                 info("Recorded starter kit {$detectedVersion} in [{$manifestFilename}].");
-
-                $manifest = new StarterKitManifest($baseRelease);
             }
 
             $fromVersion = $manifest->release->version;
@@ -302,7 +283,7 @@ final class UpdateCommand extends Command
                     default: $proposedRemovedFeatures,
                 );
 
-                $stageRemovedFeatures->handle($updateDirectory, $latestRelease, [...$manifest->removedFeatures, ...$acceptedRemovedFeatures]);
+                $stageRemovedFeatures->handle($updateDirectory, new StarterKitManifest($latestRelease, [...$manifest->removedFeatures, ...$acceptedRemovedFeatures], $manifest->teams));
             }
 
             if (! confirm("Mark the project as updated to starter kit {$toVersion}?")) {
@@ -315,15 +296,8 @@ final class UpdateCommand extends Command
 
             $completeStarterKitUpdate->handle($updateDirectory);
         } catch (ProcessFailedException $exception) {
-            $result = $exception->result;
-
-            $this->output->write($result->errorOutput());
-            $this->output->write($result->output());
-
-            error("The command [{$result->command()}] failed with exit code {$result->exitCode()}.");
-
-            return self::FAILURE;
-        } catch (CouldNotResolveStarterKitRelease|CouldNotReadStarterKitManifest|CouldNotCompleteStarterKitUpdate $exception) {
+            return $this->reportFailedProcess($exception);
+        } catch (CouldNotResolveStarterKitRelease|CouldNotReadStarterKitManifest|CouldNotApplyTeamsOverlay|CouldNotCompleteStarterKitUpdate $exception) {
             error($exception->getMessage());
 
             return self::FAILURE;
@@ -354,35 +328,6 @@ final class UpdateCommand extends Command
         ];
     }
 
-    private function handOver(LaunchAgent $launchAgent, Agent $agent, UpdateDirectory $updateDirectory, string $instructionsPath): void
-    {
-        $exitCode = $launchAgent->handle($agent, $updateDirectory->projectDirectory, $updateDirectory->relative($instructionsPath));
-
-        if ($exitCode !== 0) {
-            warning("{$agent->label()} exited with code {$exitCode}.");
-        }
-    }
-
-    /**
-     * @param  list<Agent>  $installedAgents
-     */
-    private function chooseAgent(array $installedAgents): ?Agent
-    {
-        if (! $this->input->isInteractive()) {
-            return null;
-        }
-
-        $choice = select(
-            label: 'Which agent should apply the update?',
-            options: [
-                ...collect($installedAgents)->mapWithKeys(fn (Agent $agent): array => [$agent->value => $agent->label()])->all(),
-                self::NO_AGENT_CHOICE => 'None, just give me the files',
-            ],
-        );
-
-        return Agent::tryFrom((string) $choice);
-    }
-
     private function chooseKit(?Kit $requestedKit, ?Kit $guessedKit): ?Kit
     {
         if ($requestedKit instanceof Kit) {
@@ -407,35 +352,8 @@ final class UpdateCommand extends Command
         return Arr::join(array_column(Kit::cases(), 'value'), ', ', ' or ');
     }
 
-    /**
-     * @return list<string>
-     */
-    private function agentChoices(): array
-    {
-        return [
-            ...array_map(fn (Agent $agent): string => $agent->value, Agent::cases()),
-            self::NO_AGENT_CHOICE,
-        ];
-    }
-
     private function preparedFileLine(string $filename, string $description): string
     {
         return '  '.mb_str_pad($filename, 16).$description;
-    }
-
-    /**
-     * @param  list<string>  $changedFiles
-     * @return list<string>
-     */
-    private function changedFileLines(array $changedFiles): array
-    {
-        if ($changedFiles === []) {
-            return ['No files were changed.'];
-        }
-
-        return [
-            'Changed files:',
-            ...array_map(fn (string $changedFile): string => "  {$changedFile}", $changedFiles),
-        ];
     }
 }

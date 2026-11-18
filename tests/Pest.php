@@ -65,3 +65,12 @@ function composerShowOutput(array $versions, string $reference = 'c31ae68197d092
         ],
     ]);
 }
+
+function createTeamsOverlay(string $directory, array $files = [], array $deleted = [], int $version = 1): void
+{
+    File::ensureDirectoryExists("{$directory}/.starter-kit/teams/files");
+
+    createFiles("{$directory}/.starter-kit/teams/files", $files);
+
+    File::put("{$directory}/.starter-kit/teams/manifest.json", (string) json_encode(['version' => $version, 'deleted' => $deleted]));
+}

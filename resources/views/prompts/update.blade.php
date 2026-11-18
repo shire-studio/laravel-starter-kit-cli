@@ -1,8 +1,12 @@
 # Update this project to starter kit {!! $update->to->version !!}
 
-This project was created from the {!! $update->to->kit->label() !!} starter kit ([{!! $update->to->kit->package() !!}]({!! $update->to->repository !!})) at **{!! $update->from->version !!}**. Bring in the upstream changes up to **{!! $update->to->version !!}** while keeping everything this project has changed since.
+This project was created from the {!! $update->to->kit->label() !!} starter kit ([{!! $update->to->kit->package() !!}]({!! $update->to->repository !!})) at **{!! $update->from->version !!}**{!! $teams ? ' with teams' : '' !!}. Bring in the upstream changes up to **{!! $update->to->version !!}** while keeping everything this project has changed since.
 
 ## What is in `{!! $updateDirectory->name !!}/`
+@if($teams)
+
+The old and new versions below are both the starter kit's teams variant.
+@endif
 
 - `{!! $updateDirectory->relative($updateDirectory->changes()) !!}`: the upstream changes from {!! $update->from->version !!} to {!! $update->to->version !!}. Lock files are left out.
 - `{!! $updateDirectory->relative($updateDirectory->oldFiles()) !!}/`: the {!! $update->from->version !!} version of every file upstream changed or deleted.
