@@ -16,6 +16,7 @@ final readonly class PrepareStarterKitUpdate
 {
     public function __construct(
         private DownloadStarterKitRelease $downloadStarterKitRelease,
+        private ApplyStarterKitVariant $applyStarterKitVariant,
         private DiffStarterKitReleases $diffStarterKitReleases,
         private FindRemovedStarterKitFiles $findRemovedStarterKitFiles,
         private FetchStarterKitCommitLog $fetchStarterKitCommitLog,
@@ -32,7 +33,10 @@ final readonly class PrepareStarterKitUpdate
 
         try {
             $this->downloadStarterKitRelease->handle($manifest->release, "{$workingDirectory}/old");
+            $this->applyStarterKitVariant->handle($manifest->release, "{$workingDirectory}/old", $manifest->teams);
+
             $this->downloadStarterKitRelease->handle($release, "{$workingDirectory}/new");
+            $this->applyStarterKitVariant->handle($release, "{$workingDirectory}/new", $manifest->teams);
 
             $diff = $this->diffStarterKitReleases->handle("{$workingDirectory}/old", "{$workingDirectory}/new", "{$workingDirectory}/diff.git");
 
@@ -67,11 +71,12 @@ final readonly class PrepareStarterKitUpdate
                 File::put($updateDirectory->commitLog(), "{$commitLog}\n");
             }
 
-            $this->recordStarterKitRelease->handle($release, $updateDirectory->path(), $manifest->removedFeatures);
+            $this->recordStarterKitRelease->handle(new StarterKitManifest($release, $manifest->removedFeatures, $manifest->teams), $updateDirectory->path());
 
             File::put($updateDirectory->prompt(), View::make('prompts.update', [
                 'update' => $update,
                 'removedFeatures' => $manifest->removedFeatures,
+                'teams' => $manifest->teams,
                 'hasCommitLog' => $commitLog !== null,
                 'updateDirectory' => $updateDirectory,
             ])->render());

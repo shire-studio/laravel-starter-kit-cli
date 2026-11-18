@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Data\StarterKitRelease;
+use App\Data\StarterKitManifest;
 use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 
@@ -14,12 +14,9 @@ final readonly class StageRemovedFeatures
         private RecordStarterKitRelease $recordStarterKitRelease,
     ) {}
 
-    /**
-     * @param  list<string>  $removedFeatures
-     */
-    public function handle(UpdateDirectory $updateDirectory, StarterKitRelease $release, array $removedFeatures): void
+    public function handle(UpdateDirectory $updateDirectory, StarterKitManifest $manifest): void
     {
-        $this->recordStarterKitRelease->handle($release, $updateDirectory->path(), $removedFeatures);
+        $this->recordStarterKitRelease->handle($manifest, $updateDirectory->path());
 
         File::delete($updateDirectory->removedFeatures());
     }

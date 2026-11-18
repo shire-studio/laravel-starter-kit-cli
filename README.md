@@ -12,7 +12,7 @@
     <a href="LICENSE.md"><img src="https://img.shields.io/packagist/l/shire-studio/laravel-starter-kit-cli" alt="License"></a>
 </p>
 
-The installer for the Shire Studio Laravel starter kits. Use `new` to start a project from a starter kit, and `update` to bring newer starter kit changes into a project you've already built with one. Think of it as the `laravel` installer, but for our starter kits.
+The installer for the Shire Studio Laravel starter kits. Use `new` to start a project from a starter kit, `update` to bring newer starter kit changes into a project you've already built with one, and `teams` to add teams to a project created without them. Think of it as the `laravel` installer, but for our starter kits.
 
 ## The Kits
 
@@ -57,16 +57,25 @@ To upgrade to the latest release later, run `composer global update shire-studio
 shire-kit new example-app --kit=react
 ```
 
-This creates `example-app` from the latest stable release of the React starter kit. Without `--kit` you'll be asked which kit to use. You'll also be asked whether to install the frontend dependencies and build the assets (not for the API kit, which has no frontend), and whether to initialise a git repository. Skip the questions with these options:
+This creates `example-app` from the latest stable release of the React starter kit. Without `--kit` you'll be asked which kit to use. You'll also be asked whether to add teams (not for the Blade kit, which has no teams), whether to install the frontend dependencies and build the assets (not for the API kit, which has no frontend), and whether to initialise a git repository. Skip the questions with these options:
 
 | Option | What it does |
 | --- | --- |
 | `--kit=<kit>` | Use `vue`, `react`, `svelte`, `livewire`, `api` or `blade`. Required with `--no-interaction` |
+| `--teams` / `--no-teams` | Add teams to the project, or don't |
 | `--pnpm` / `--no-pnpm` | Install the frontend dependencies and build the assets, or don't |
 | `--git` / `--no-git` | Initialise a git repository with a first commit, or don't |
 | `--force`, `-f` | Overwrite the project directory if it already exists |
 
-Every new project gets a `.starter-kit.json` file recording the kit and release it was created from. Commit it, because `update` reads it to work out which changes the project hasn't received yet.
+Every new project gets a `.starter-kit.json` file recording the kit and release it was created from, and whether it has teams. Commit it, because `update` reads it to work out which changes the project hasn't received yet.
+
+#### Teams
+
+Teams follow the teams flow of Laravel's official starter kits: a personal team for every user, team switching, members with roles, and invitations. Every kit except Blade has them. They don't ship as a separate kit. Each kit release carries them as an overlay in `.starter-kit/teams/`, and `new` applies it when you ask for teams. Without teams, `new` removes the overlay, so you get the same project as a plain `composer create-project`.
+
+To deal with the overlay before Composer installs anything or runs any scripts, `new` runs `composer create-project` with `--no-install` and `--no-scripts`. Once the overlay is applied or removed, it runs the project's `post-root-package-install` scripts, then `composer install` (which runs the install and autoload scripts itself), then the `post-create-project-cmd` scripts. That is the same order a plain `composer create-project` runs them in.
+
+If a kit release has no teams overlay (for example a release from before teams were added), `new --teams` stops with an error instead of giving you a project without teams.
 
 ### Update an existing project
 
@@ -94,7 +103,9 @@ An update runs in these steps:
 3. The agent starts in an interactive session with the prompt. Follow along, answer its questions, and exit the session when it's done.
 4. The CLI shows the changed files. If the agent found features you removed on purpose, you pick which ones to record (see below). Then the CLI asks whether to mark the project as updated. If you say yes, it updates `.starter-kit.json` and removes `.starter-kit-update/`.
 
-If you say no, the project keeps its current version in `.starter-kit.json`, and `.starter-kit-update/` stays in place with the agent's changes still in your working tree. To finish by hand, copy `.starter-kit-update/.starter-kit.json` (which already includes the removed features you picked) to `.starter-kit.json`, then delete `.starter-kit-update/`. The end of `.starter-kit-update/PROMPT.md` lists the same steps. Running `update` again doesn't pick up where you left off. It needs `--force` because of the uncommitted changes, and it prepares `.starter-kit-update/` from scratch.
+If you say no, the project keeps its current version in `.starter-kit.json`, and `.starter-kit-update/` stays in place with the agent's changes still in your working tree. To finish by hand, copy `.starter-kit-update/.starter-kit.json` (which already includes the removed features you picked) to `.starter-kit.json`, then delete `.starter-kit-update/`. The end of `.starter-kit-update/PROMPT.md` lists the same steps. Running `update` (or `teams`) again stops while `.starter-kit-update/` holds changes that were never marked as done, so they aren't lost by accident. Finish them by hand as above, or delete `.starter-kit-update/` to start over. An update started again from scratch also needs `--force`, because the agent's changes are still uncommitted.
+
+For a project with teams, both releases are compared with their teams overlay applied, so the changes include the team code and your team files don't show up as local changes. A project whose `.starter-kit.json` has no `teams` entry counts as a project without teams. The overlay directory itself is never part of an update.
 
 If the newer release has nothing to apply to the project (for example, only its lock files changed), the CLI marks the project as updated straight away, without an agent. This also happens with `--agent=none` and `--no-interaction`.
 
@@ -117,6 +128,29 @@ If you removed a starter kit feature from your project, such as authentication, 
 Starter kit releases published with its release workflow ship `.starter-kit.json` themselves, so even projects created with a plain `composer create-project` have one. For an older project without it, the CLI first needs the kit. Pass it with `--kit`, or pick it when asked (the kit named in the project's `composer.json` is preselected). The agent then works out which release of that kit the project started from. You confirm the version, the CLI records it in `.starter-kit.json`, and the update carries on as normal. This needs an agent, so with `--agent=none` or `--no-interaction` the update fails until you add `.starter-kit.json` by hand.
 
 `.starter-kit.json` has to name one of the kit packages above and a stable release of it. Projects created from the original `shire-studio/laravel-starter-kit` package need their `package` changed to `shire-studio/laravel-starter-kit-vue` first. If it records a pre-release or a branch, `update` stops instead of guessing what changed.
+
+### Add teams to an existing project
+
+Run `teams` from the root of a project created from the starter kit without teams:
+
+```bash
+cd example-app
+shire-kit teams
+```
+
+Like `update`, it needs a git repository with no uncommitted changes and a `.starter-kit.json` (run `update` first if the project has none). It adds the teams variant of the release the project was created from, not of the latest release. If that release has no teams overlay, run `update` first.
+
+1. The CLI downloads the release twice and applies the teams overlay to one copy, so it knows exactly what teams change.
+2. It applies every change that doesn't touch your own work: files teams add, files you haven't changed, and files you have changed where Git can merge the teams change into your version without a conflict. Files teams delete are removed only if you haven't changed them.
+3. Whatever is left is a file you changed in a way that conflicts with teams, a file you removed, or a file of your own where teams add one. These go to `.starter-kit-update/` with a prompt, and a coding agent of your choice merges them, as in `update`. Your files are never overwritten with conflict markers.
+4. Once nothing is left, or once you confirm after the agent session, `.starter-kit.json` records `"teams": true`.
+
+The team migrations only add tables and columns, and a data migration gives every existing user a personal team. Run `php artisan migrate` yourself once you've reviewed the changes. The CLI never touches your database. Teams need login and registration, so if a removed feature recorded in `.starter-kit.json` mentions login, registration or authentication, `teams` warns you and asks before carrying on. Without interaction, it stops. It also stops if `.starter-kit-update/` still holds changes from an earlier `update` or `teams` run that were never marked as done, so they aren't lost.
+
+| Option | What it does |
+| --- | --- |
+| `--agent=<agent>` | Skip the question and use `claude`, `codex`, `gemini`, `opencode`, `cursor` or `none` |
+| `--force`, `-f` | Run even if the project has uncommitted changes |
 
 ## Local Development
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\RecordStarterKitRelease;
+use App\Data\StarterKitManifest;
 use App\Enums\Kit;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
@@ -19,7 +20,7 @@ beforeEach(function (): void {
         'routes/web.php' => "<?php // version 1\n",
     ]);
 
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.3.0', 'a1b2c3'), $this->projectDirectory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), $this->projectDirectory);
 
     chdir($this->projectDirectory);
 });
@@ -122,7 +123,7 @@ it('only offers the agents that are installed', function (): void {
 });
 
 it('keeps the recorded removed features when more are proposed', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.3.0', 'a1b2c3'), $this->projectDirectory, ['Teams']);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), ['Teams']), $this->projectDirectory);
 
     fakeUpdateProcesses($this->projectDirectory, [
         "'claude' 'Read*" => fakeAgentSession($this->projectDirectory, '["Teams", "Authentication"]'),
@@ -235,7 +236,7 @@ it('marks the project as updated without interaction when the release has no cha
 });
 
 it('fails when the recorded version is not a stable release', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.5.0-beta.1'), $this->projectDirectory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.5.0-beta.1')), $this->projectDirectory);
 
     fakeUpdateProcesses($this->projectDirectory);
 
@@ -247,7 +248,7 @@ it('fails when the recorded version is not a stable release', function (): void 
 });
 
 it('does nothing when the project is already up to date', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->projectDirectory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease()), $this->projectDirectory);
 
     fakeUpdateProcesses($this->projectDirectory);
 
@@ -510,7 +511,7 @@ it('fails without a manifest when the kit cannot be worked out', function (): vo
 });
 
 it('updates the project from the kit recorded in its manifest', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease('v1.3.0', 'a1b2c3', Kit::Api), $this->projectDirectory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3', Kit::Api)), $this->projectDirectory);
 
     fakeUpdateProcesses($this->projectDirectory);
 
@@ -559,4 +560,74 @@ it('fails when the manifest names a package that is not a starter kit', function
     $this->artisan('update', ['--no-interaction' => true])
         ->expectsOutputToContain('The [.starter-kit.json] file names [shire-studio/laravel-starter-kit], which is not a Shire Studio starter kit.')
         ->assertFailed();
+});
+
+it('keeps a teams project on the teams variant', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), teams: true), $this->projectDirectory);
+
+    fakeUpdateProcesses($this->projectDirectory, [
+        "*'create-project'*" => function (PendingProcess $process): FakeProcessResult {
+            createFiles($process->command[3], [
+                'composer.json' => "{\"version\": 1}\n",
+                'routes/web.php' => "<?php // base routes\n",
+            ]);
+
+            createTeamsOverlay($process->command[3], [
+                'routes/web.php' => $process->command[4] === 'v1.3.0' ? "<?php // version 1\n" : "<?php // version 2\n",
+            ]);
+
+            return Process::result();
+        },
+        "'claude' 'Read*" => fakeAgentSession($this->projectDirectory, '["Authentication"]'),
+    ]);
+
+    $this->artisan('update', ['--agent' => 'claude'])
+        ->expectsChoice('Which removed features should be recorded so future updates leave them out?', ['Authentication'], ['Authentication'])
+        ->expectsConfirmation('Mark the project as updated to starter kit v1.4.0?', 'yes')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray([
+        'version' => 'v1.4.0',
+        'teams' => true,
+        'removed' => ['Authentication'],
+    ])
+        ->and($this->updateDirectory)->not->toBeDirectory();
+});
+
+it('fails when a teams project release has no teams variant', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), teams: true), $this->projectDirectory);
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--agent' => 'none'])
+        ->expectsOutputToContain('The Vue starter kit v1.3.0 has no teams variant.')
+        ->assertFailed();
+
+    expect($this->updateDirectory)->not->toBeDirectory();
+});
+
+it('refuses to run while starter kit changes are waiting to be marked as done', function (): void {
+    createFiles($this->updateDirectory, ['.starter-kit.json' => '{"teams": true}']);
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--agent' => 'none'])
+        ->expectsOutputToContain('[.starter-kit-update] holds starter kit changes that were not marked as done. Finish them by copying [.starter-kit-update/.starter-kit.json] to [.starter-kit.json] and deleting [.starter-kit-update], or delete [.starter-kit-update] to discard them. Then run update again.')
+        ->assertFailed();
+
+    expect(File::get("{$this->updateDirectory}/.starter-kit.json"))->toBe('{"teams": true}');
+
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('create-project', (array) $process->command, true));
+});
+
+it('replaces an update directory that holds no staged changes', function (): void {
+    createFiles($this->updateDirectory, ['DETECT.md' => 'stale']);
+
+    fakeUpdateProcesses($this->projectDirectory);
+
+    $this->artisan('update', ['--agent' => 'none'])
+        ->expectsOutputToContain('The update is ready to apply.')
+        ->assertSuccessful();
+
+    expect("{$this->updateDirectory}/DETECT.md")->not->toBeFile();
 });

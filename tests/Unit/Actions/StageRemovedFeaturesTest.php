@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\StageRemovedFeatures;
+use App\Data\StarterKitManifest;
 use App\Data\UpdateDirectory;
 use Illuminate\Support\Facades\File;
 
@@ -17,10 +18,11 @@ afterEach(function (): void {
 });
 
 it('records the removed features in the staged manifest', function (): void {
-    resolve(StageRemovedFeatures::class)->handle(UpdateDirectory::in($this->directory), starterKitRelease(), ['Teams', 'Authentication']);
+    resolve(StageRemovedFeatures::class)->handle(UpdateDirectory::in($this->directory), new StarterKitManifest(starterKitRelease(), ['Teams', 'Authentication'], teams: true));
 
     expect(File::json("{$this->directory}/.starter-kit-update/.starter-kit.json"))->toMatchArray([
         'version' => 'v1.4.0',
+        'teams' => true,
         'removed' => ['Teams', 'Authentication'],
     ])
         ->and("{$this->directory}/.starter-kit-update/removed.json")->not->toBeFile()

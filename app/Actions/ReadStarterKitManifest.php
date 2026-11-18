@@ -52,6 +52,7 @@ final readonly class ReadStarterKitManifest
                     repository: Arr::string($manifest, 'repository'),
                 ),
                 removedFeatures: $this->removedFeatures($manifest),
+                teams: Arr::boolean($manifest, 'teams', false),
             );
         } catch (JsonException|InvalidArgumentException) {
             throw CouldNotReadStarterKitManifest::invalid($this->manifestFilename);
