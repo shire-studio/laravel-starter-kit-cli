@@ -28,7 +28,16 @@ function fakeStarterKitProcesses(array $overrides = []): void
         "*'show'*'v1.4.0'*" => Process::result(composerShowOutput(['v1.4.0'])),
         "*'show'*" => Process::result(composerShowOutput(['v1.4.0', 'v1.3.10'])),
         "*'create-project'*" => function (PendingProcess $process): FakeProcessResult {
-            File::ensureDirectoryExists($process->command[3]);
+            $directory = $process->command[3];
+
+            createFiles($directory, [
+                'composer.json' => (string) json_encode(['scripts' => ['post-create-project-cmd' => ['@php artisan key:generate --ansi']]]),
+                'app/Models/User.php' => "<?php // base user\n",
+            ]);
+
+            if ($process->command[2] !== 'shire-studio/laravel-starter-kit-blade') {
+                createTeamsOverlay($directory, ['app/Models/Team.php' => "<?php // team\n"]);
+            }
 
             return Process::result();
         },
@@ -48,7 +57,7 @@ it('creates a project from the latest starter kit release', function (): void {
         ->doesntExpectOutputToContain('pnpm install')
         ->assertSuccessful();
 
-    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-install', '--no-scripts', '--no-interaction']);
     Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['pnpm', 'run', 'build'] && $process->path === $this->projectDirectory);
     Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from the Vue starter kit v1.4.0']);
 
@@ -57,7 +66,84 @@ it('creates a project from the latest starter kit release', function (): void {
         'version' => 'v1.4.0',
         'reference' => 'c31ae68197d092fbaac6ac68712b44f230e27850',
         'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
+        'teams' => false,
+    ])
+        ->and("{$this->projectDirectory}/app/Models/Team.php")->not->toBeFile()
+        ->and("{$this->projectDirectory}/.starter-kit")->not->toBeDirectory();
+});
+
+it('creates a project with teams', function (): void {
+    fakeStarterKitProcesses();
+
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--teams' => true, '--git' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('Using the Vue starter kit v1.4.0 with teams.')
+        ->expectsOutputToContain('Your project is ready.')
+        ->assertSuccessful();
+
+    Process::assertRan(fn (PendingProcess $process): bool => $process->command === ['composer', 'run-script', 'post-create-project-cmd', '--no-interaction']
+        && $process->path === $this->projectDirectory);
+    Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from the Vue starter kit v1.4.0 with teams']);
+
+    expect(File::get("{$this->projectDirectory}/app/Models/Team.php"))->toBe("<?php // team\n")
+        ->and("{$this->projectDirectory}/.starter-kit")->not->toBeDirectory()
+        ->and(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray([
+            'version' => 'v1.4.0',
+            'teams' => true,
+        ]);
+});
+
+it('asks whether to add teams', function (): void {
+    fakeStarterKitProcesses();
+
+    $this->artisan('new', ['--kit' => 'livewire', 'name' => 'example-app'])
+        ->expectsConfirmation('Would you like to add teams?', 'yes')
+        ->expectsConfirmation('Would you like to install the frontend dependencies and build the assets?', 'no')
+        ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
+        ->expectsOutputToContain('Using the Livewire starter kit v1.4.0 with teams.')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray(['teams' => true]);
+});
+
+it('does not ask whether to add teams for a kit without them', function (): void {
+    fakeStarterKitProcesses();
+
+    $this->artisan('new', ['--kit' => 'blade', 'name' => 'example-app'])
+        ->expectsConfirmation('Would you like to install the frontend dependencies and build the assets?', 'no')
+        ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
+        ->assertSuccessful();
+
+    expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray(['teams' => false]);
+});
+
+it('rejects teams for a kit without them', function (): void {
+    Process::fake();
+
+    $this->artisan('new', ['--kit' => 'blade', 'name' => 'example-app', '--teams' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('The Blade starter kit has no teams variant. Run new without --teams.')
+        ->assertFailed();
+
+    Process::assertNothingRan();
+});
+
+it('fails when the starter kit release has no teams variant', function (): void {
+    fakeStarterKitProcesses([
+        "*'create-project'*" => function (PendingProcess $process): FakeProcessResult {
+            createFiles($process->command[3], ['composer.json' => '{}']);
+
+            return Process::result();
+        },
     ]);
+
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--teams' => true, '--git' => true, '--no-interaction' => true])
+        ->expectsOutputToContain('The Vue starter kit v1.4.0 has no teams variant. Run new without --teams.')
+        ->assertFailed();
+
+    expect($this->projectDirectory)->not->toBeDirectory();
+
+    Process::assertDidntRun(['composer', 'install', '--prefer-dist', '--no-interaction']);
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('run-script', (array) $process->command, true));
+    Process::assertDidntRun(['git', 'add', '--all']);
 });
 
 it('asks for the project name and optional steps', function (): void {
@@ -66,12 +152,13 @@ it('asks for the project name and optional steps', function (): void {
     $this->artisan('new')
         ->expectsQuestion('What is the name of your project?', 'example-app')
         ->expectsChoice('Which starter kit would you like to use?', 'vue', Kit::options())
+        ->expectsConfirmation('Would you like to add teams?', 'no')
         ->expectsConfirmation('Would you like to install the frontend dependencies and build the assets?', 'no')
         ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
         ->expectsOutputToContain('pnpm install')
         ->assertSuccessful();
 
-    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-vue', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-install', '--no-scripts', '--no-interaction']);
     Process::assertDidntRun(['pnpm', 'install']);
     Process::assertDidntRun(['git', 'add', '--all']);
 });
@@ -219,7 +306,7 @@ it('creates a project from the chosen kit', function (): void {
         ->expectsOutputToContain('Using the React starter kit v1.4.0.')
         ->assertSuccessful();
 
-    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-react', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-interaction']);
+    Process::assertRan(['composer', 'create-project', 'shire-studio/laravel-starter-kit-react', $this->projectDirectory, 'v1.4.0', '--prefer-dist', '--no-install', '--no-scripts', '--no-interaction']);
     Process::assertRan(['git', 'commit', '--quiet', '--message=chore: create project from the React starter kit v1.4.0']);
 
     expect(File::json("{$this->projectDirectory}/.starter-kit.json"))->toMatchArray([
@@ -251,6 +338,7 @@ it('does not offer to install a frontend for a kit without one', function (): vo
     fakeStarterKitProcesses();
 
     $this->artisan('new', ['--kit' => 'api', 'name' => 'example-app'])
+        ->expectsConfirmation('Would you like to add teams?', 'no')
         ->expectsConfirmation('Would you like to initialise a git repository?', 'no')
         ->doesntExpectOutputToContain('pnpm install')
         ->assertSuccessful();
@@ -266,4 +354,22 @@ it('rejects installing the frontend for a kit without one', function (): void {
         ->assertFailed();
 
     Process::assertNothingRan();
+});
+
+it('fails without suggesting to drop teams when the teams variant cannot be applied', function (): void {
+    fakeStarterKitProcesses([
+        "*'create-project'*" => function (PendingProcess $process): FakeProcessResult {
+            createFiles($process->command[3], ['composer.json' => '{}']);
+
+            createTeamsOverlay($process->command[3], version: 2);
+
+            return Process::result();
+        },
+    ]);
+
+    $this->artisan('new', ['--kit' => 'vue', 'name' => 'example-app', '--teams' => true, '--no-interaction' => true])
+        ->doesntExpectOutputToContain('Run new without --teams.')
+        ->assertFailed();
+
+    expect($this->projectDirectory)->not->toBeDirectory();
 });

@@ -72,6 +72,11 @@ enum Kit: string
         return $this !== self::Api;
     }
 
+    public function hasTeams(): bool
+    {
+        return $this !== self::Blade;
+    }
+
     public function generatesTypes(): bool
     {
         return in_array($this, [self::Vue, self::React, self::Svelte], true);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\PrepareStarterKitUpdate;
 use App\Data\StarterKitManifest;
 use App\Data\UpdateDirectory;
+use App\Exceptions\CouldNotApplyTeamsOverlay;
 use Illuminate\Process\Exceptions\ProcessFailedException;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
@@ -170,6 +171,76 @@ it('cleans up the downloaded releases when a download fails', function (): void 
 
     expect(fn () => resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory)))
         ->toThrow(ProcessFailedException::class)
+        ->and($this->workingDirectory)->not->toBeDirectory()
+        ->and($this->updateDirectory)->not->toBeDirectory();
+});
+
+function fakeStarterKitDownloadsWithTeams(): void
+{
+    fakeStarterKitDownloads([
+        "*'create-project'*" => function (PendingProcess $process): FakeProcessResult {
+            $directory = $process->command[3];
+            $isOld = $process->command[4] === 'v1.3.0';
+
+            createFiles($directory, [
+                'composer.json' => "{\"version\": 1}\n",
+                'routes/web.php' => $isOld ? "<?php // version 1\n" : "<?php // version 2\n",
+                'resources/js/pages/Welcome.vue' => "<template>welcome</template>\n",
+            ]);
+
+            createTeamsOverlay($directory, [
+                'app/Models/Team.php' => $isOld ? "<?php // team 1\n" : "<?php // team 2\n",
+                'routes/web.php' => $isOld ? "<?php // team routes 1\n" : "<?php // team routes 2\n",
+            ], ['resources/js/pages/Welcome.vue']);
+
+            return Process::result();
+        },
+    ]);
+}
+
+it('compares a teams project against the teams variant of both releases', function (): void {
+    fakeStarterKitDownloadsWithTeams();
+
+    createFiles($this->directory, ['app/Models/Team.php' => "<?php // team 1\n"]);
+
+    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), teams: true), starterKitRelease(), UpdateDirectory::in($this->directory));
+
+    expect($update->diff->modifiedFiles)->toBe(['app/Models/Team.php', 'routes/web.php'])
+        ->and($update->diff->addedFiles)->toBeEmpty()
+        ->and($update->diff->deletedFiles)->toBeEmpty()
+        ->and($update->removedFiles)->toBeEmpty()
+        ->and($update->diff->patch)->not->toContain('.starter-kit/')
+        ->and(File::get("{$this->updateDirectory}/old/routes/web.php"))->toBe("<?php // team routes 1\n")
+        ->and(File::get("{$this->updateDirectory}/new/routes/web.php"))->toBe("<?php // team routes 2\n")
+        ->and(File::json("{$this->updateDirectory}/.starter-kit.json"))->toMatchArray(['version' => 'v1.4.0', 'teams' => true])
+        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))
+        ->toContain('at **v1.3.0** with teams.')
+        ->toContain("The old and new versions below are both the starter kit's teams variant.");
+});
+
+it('leaves the teams overlay out of the update for a project without teams', function (): void {
+    fakeStarterKitDownloadsWithTeams();
+
+    createFiles($this->directory, ['resources/js/pages/Welcome.vue' => "<template>welcome</template>\n"]);
+
+    $update = resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3')), starterKitRelease(), UpdateDirectory::in($this->directory));
+
+    expect($update->diff->modifiedFiles)->toBe(['routes/web.php'])
+        ->and($update->diff->addedFiles)->toBeEmpty()
+        ->and($update->removedFiles)->toBeEmpty()
+        ->and($update->diff->patch)->not->toContain('.starter-kit/')
+        ->and(File::get("{$this->updateDirectory}/new/routes/web.php"))->toBe("<?php // version 2\n")
+        ->and(File::json("{$this->updateDirectory}/.starter-kit.json"))->toMatchArray(['teams' => false])
+        ->and(File::get("{$this->updateDirectory}/PROMPT.md"))
+        ->toContain('at **v1.3.0**. Bring in')
+        ->not->toContain('teams variant');
+});
+
+it('fails when a teams project release has no teams overlay', function (): void {
+    fakeStarterKitDownloads();
+
+    expect(fn () => resolve(PrepareStarterKitUpdate::class)->handle(new StarterKitManifest(starterKitRelease('v1.3.0', 'a1b2c3'), teams: true), starterKitRelease(), UpdateDirectory::in($this->directory)))
+        ->toThrow(CouldNotApplyTeamsOverlay::class, 'The Vue starter kit v1.3.0 has no teams variant.')
         ->and($this->workingDirectory)->not->toBeDirectory()
         ->and($this->updateDirectory)->not->toBeDirectory();
 });

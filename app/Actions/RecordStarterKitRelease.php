@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Data\StarterKitRelease;
+use App\Data\StarterKitManifest;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Support\Facades\File;
 
@@ -15,19 +15,19 @@ final readonly class RecordStarterKitRelease
         private string $manifestFilename,
     ) {}
 
-    /**
-     * @param  list<string>  $removedFeatures
-     */
-    public function handle(StarterKitRelease $release, string $directory, array $removedFeatures = []): void
+    public function handle(StarterKitManifest $manifest, string $directory): void
     {
-        $manifest = json_encode([
+        $release = $manifest->release;
+
+        $contents = json_encode([
             'package' => $release->kit->package(),
             'version' => $release->version,
             ...($release->reference === null ? [] : ['reference' => $release->reference]),
             'repository' => $release->repository,
-            ...($removedFeatures === [] ? [] : ['removed' => $removedFeatures]),
+            'teams' => $manifest->teams,
+            ...($manifest->removedFeatures === [] ? [] : ['removed' => $manifest->removedFeatures]),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
-        File::put("{$directory}/{$this->manifestFilename}", "{$manifest}\n");
+        File::put("{$directory}/{$this->manifestFilename}", "{$contents}\n");
     }
 }

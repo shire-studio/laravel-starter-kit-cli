@@ -6,22 +6,30 @@ namespace App\Actions;
 
 use App\Data\StarterKitRelease;
 use Illuminate\Support\Facades\Process;
+use Throwable;
 
 final readonly class CreateProject
 {
     public function __construct(
+        private ApplyStarterKitVariant $applyStarterKitVariant,
+        private InstallProject $installProject,
         private DeleteDirectory $deleteDirectory,
     ) {}
 
-    public function handle(StarterKitRelease $release, string $directory): void
+    public function handle(StarterKitRelease $release, string $directory, bool $teams): void
     {
-        $result = Process::forever()
-            ->run(['composer', 'create-project', $release->kit->package(), $directory, $release->version, '--prefer-dist', '--no-interaction']);
+        try {
+            Process::forever()
+                ->run(['composer', 'create-project', $release->kit->package(), $directory, $release->version, '--prefer-dist', '--no-install', '--no-scripts', '--no-interaction'])
+                ->throw();
 
-        if ($result->failed()) {
+            $this->applyStarterKitVariant->handle($release, $directory, $teams);
+
+            $this->installProject->handle($release, $directory);
+        } catch (Throwable $throwable) {
             $this->deleteDirectory->handle($directory);
-        }
 
-        $result->throw();
+            throw $throwable;
+        }
     }
 }

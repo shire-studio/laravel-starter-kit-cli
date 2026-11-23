@@ -12,5 +12,6 @@ final readonly class StarterKitManifest
     public function __construct(
         public StarterKitRelease $release,
         public array $removedFeatures = [],
+        public bool $teams = false,
     ) {}
 }

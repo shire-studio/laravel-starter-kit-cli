@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\ReadStarterKitManifest;
 use App\Actions\RecordStarterKitRelease;
+use App\Data\StarterKitManifest;
 use App\Exceptions\CouldNotReadStarterKitManifest;
 use Illuminate\Support\Facades\File;
 
@@ -16,16 +17,23 @@ afterEach(function (): void {
 });
 
 it('reads the release the project was created from', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease()), $this->directory);
 
     $manifest = resolve(ReadStarterKitManifest::class)->handle($this->directory);
 
     expect($manifest->release)->toEqual(starterKitRelease())
-        ->and($manifest->removedFeatures)->toBeEmpty();
+        ->and($manifest->removedFeatures)->toBeEmpty()
+        ->and($manifest->teams)->toBeFalse();
+});
+
+it('reads that the project has teams', function (): void {
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease(), teams: true), $this->directory);
+
+    expect(resolve(ReadStarterKitManifest::class)->handle($this->directory)?->teams)->toBeTrue();
 });
 
 it('reads the features the project has removed', function (): void {
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory, ['Authentication']);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease(), ['Authentication']), $this->directory);
 
     $manifest = resolve(ReadStarterKitManifest::class)->handle($this->directory);
 
@@ -42,7 +50,8 @@ it('reads a manifest shipped by a starter kit release without a reference', func
     $manifest = resolve(ReadStarterKitManifest::class)->handle($this->directory);
 
     expect($manifest->release->version)->toBe('v1.5.0')
-        ->and($manifest->release->reference)->toBeNull();
+        ->and($manifest->release->reference)->toBeNull()
+        ->and($manifest->teams)->toBeFalse();
 });
 
 it('returns nothing when the project has no manifest', function (): void {
@@ -52,7 +61,7 @@ it('returns nothing when the project has no manifest', function (): void {
 it('reads the configured manifest file', function (): void {
     config(['starter-kit.manifest_filename' => 'starter-kit.lock']);
 
-    resolve(RecordStarterKitRelease::class)->handle(starterKitRelease(), $this->directory);
+    resolve(RecordStarterKitRelease::class)->handle(new StarterKitManifest(starterKitRelease()), $this->directory);
 
     expect(resolve(ReadStarterKitManifest::class)->handle($this->directory)?->release->version)->toBe('v1.4.0');
 });
@@ -81,6 +90,17 @@ it('throws when the reference is not text', function (): void {
         'version' => 'v1.4.0',
         'reference' => 42,
         'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
+    ]));
+
+    resolve(ReadStarterKitManifest::class)->handle($this->directory);
+})->throws(CouldNotReadStarterKitManifest::class);
+
+it('throws when teams is not true or false', function (): void {
+    File::put("{$this->directory}/.starter-kit.json", (string) json_encode([
+        'package' => 'shire-studio/laravel-starter-kit-vue',
+        'version' => 'v1.4.0',
+        'repository' => 'https://github.com/shire-studio/laravel-starter-kit-vue.git',
+        'teams' => 'yes',
     ]));
 
     resolve(ReadStarterKitManifest::class)->handle($this->directory);
